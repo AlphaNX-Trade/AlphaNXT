@@ -3,6 +3,7 @@ import { useLocation, Link } from 'wouter';
 import { motion } from 'framer-motion';
 import { createUserWithEmailAndPassword, updateProfile, AuthError } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { initializeUserDocument, verifyUserDocument } from '@/lib/userService';
 import { BrandLogo } from '@/components/ui/Brand';
 import { Loader2 } from 'lucide-react';
 
@@ -13,6 +14,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState('');
   const [error, setError] = useState('');
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -30,16 +32,31 @@ export default function RegisterPage() {
     }
 
     setIsLoading(true);
-    
+    setLoadingStep('Creating account…');
+
     try {
+      // Step 1: Create Firebase Auth user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(userCredential.user, { displayName: name });
+
+      // Step 2: Initialize Firestore document (no-op if it already exists)
+      setLoadingStep('Setting up your profile…');
+      await initializeUserDocument(userCredential.user.uid, name, email);
+
+      // Step 3: Verify the document exists before navigating
+      setLoadingStep('Verifying account…');
+      const verified = await verifyUserDocument(userCredential.user.uid);
+      if (!verified) {
+        throw new Error('Account setup could not be verified. Please try again.');
+      }
+
       setLocation('/dashboard');
     } catch (err) {
-      const authErr = err as AuthError;
-      setError(authErr.message || "Failed to create account.");
+      const authErr = err as AuthError & { message: string };
+      setError(authErr.message || 'Failed to create account.');
     } finally {
       setIsLoading(false);
+      setLoadingStep('');
     }
   };
 
@@ -130,7 +147,12 @@ export default function RegisterPage() {
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-medium py-3 rounded-md transition-colors flex items-center justify-center gap-2 mt-6 shadow-[0_0_15px_rgba(0,255,255,0.15)] hover:shadow-[0_0_20px_rgba(0,255,255,0.25)]"
                 data-testid="button-register"
               >
-                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Create Account"}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">{loadingStep || 'Please wait…'}</span>
+                  </>
+                ) : "Create Account"}
               </button>
             </form>
           </div>
