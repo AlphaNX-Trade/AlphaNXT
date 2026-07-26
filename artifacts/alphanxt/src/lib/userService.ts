@@ -1,26 +1,63 @@
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-export interface UserProfile {
+// ─── Collection shapes ────────────────────────────────────────────────────────
+
+/** users/{uid} — profile information only */
+export interface UserProfileDoc {
   uid: string;
   fullName: string;
   email: string;
   createdAt: ReturnType<typeof serverTimestamp>;
+  xp: number;
+  level: string;
+}
+
+/** portfolio/{uid} — financial / trading data */
+export interface PortfolioDoc {
   virtualBalance: number;
   portfolioValue: number;
   totalProfitLoss: number;
-  xp: number;
-  level: string;
+  todayProfitLoss: number;
   riskScore: number;
   winRate: number;
+  updatedAt: ReturnType<typeof serverTimestamp>;
+}
+
+/** watchlist/{uid} */
+export interface WatchlistDoc {
+  stocks: string[];
+}
+
+// ─── Merged consumer type (keeps backward compatibility) ─────────────────────
+
+/**
+ * Merged view of users/{uid} + portfolio/{uid} exposed to the rest of the app.
+ * Consumers (hooks, components) continue to use this single shape.
+ */
+export interface UserProfile extends UserProfileDoc, PortfolioDoc {
   watchlist: string[];
   holdings: string[];
 }
 
+// ─── Default values ───────────────────────────────────────────────────────────
+
+const DEFAULT_PORTFOLIO: PortfolioDoc = {
+  virtualBalance: 100000,
+  portfolioValue: 100000,
+  totalProfitLoss: 0,
+  todayProfitLoss: 0,
+  riskScore: 0,
+  winRate: 0,
+  updatedAt: serverTimestamp() as ReturnType<typeof serverTimestamp>,
+};
+
+// ─── Initialization ───────────────────────────────────────────────────────────
+
 /**
- * Creates a Firestore user document for a newly registered user.
- * If the document already exists, it is left untouched.
- * Returns the document data after creation (or the existing data).
+ * Called after a new user registers.
+ * Creates documents in users/, portfolio/, and watchlist/ — all are no-ops
+ * if the document already exists (backward compatibility).
  */
 export async function initializeUserDocument(
   uid: string,
@@ -28,33 +65,81 @@ export async function initializeUserDocument(
   email: string,
 ): Promise<void> {
   const userRef = doc(db, 'users', uid);
-  const snapshot = await getDoc(userRef);
+  const portfolioRef = doc(db, 'portfolio', uid);
+  const watchlistRef = doc(db, 'watchlist', uid);
 
-  if (!snapshot.exists()) {
-    await setDoc(userRef, {
-      uid,
-      fullName,
-      email,
-      createdAt: serverTimestamp(),
-      virtualBalance: 100000,
-      portfolioValue: 100000,
-      totalProfitLoss: 0,
-      xp: 0,
-      level: 'Beginner',
-      riskScore: 0,
-      winRate: 0,
-      watchlist: [],
-      holdings: [],
+  const [userSnap, portfolioSnap, watchlistSnap] = await Promise.all([
+    getDoc(userRef),
+    getDoc(portfolioRef),
+    getDoc(watchlistRef),
+  ]);
+
+  const writes: Promise<void>[] = [];
+
+  if (!userSnap.exists()) {
+    writes.push(
+      setDoc(userRef, {
+        uid,
+        fullName,
+        email,
+        createdAt: serverTimestamp(),
+        xp: 0,
+        level: 'Beginner',
+      } satisfies UserProfileDoc),
+    );
+  }
+
+  if (!portfolioSnap.exists()) {
+    writes.push(
+      setDoc(portfolioRef, {
+        ...DEFAULT_PORTFOLIO,
+        updatedAt: serverTimestamp(),
+      }),
+    );
+  }
+
+  if (!watchlistSnap.exists()) {
+    writes.push(setDoc(watchlistRef, { stocks: [] } satisfies WatchlistDoc));
+  }
+
+  await Promise.all(writes);
+}
+
+/**
+ * Ensures a portfolio/{uid} document exists.
+ * If missing, creates it — optionally seeded from legacy user doc data.
+ * Safe to call on every dashboard mount for backward compatibility.
+ */
+export async function initializePortfolioDocument(
+  uid: string,
+  seed?: Partial<PortfolioDoc>,
+): Promise<void> {
+  const portfolioRef = doc(db, 'portfolio', uid);
+  const snap = await getDoc(portfolioRef);
+  if (!snap.exists()) {
+    await setDoc(portfolioRef, {
+      ...DEFAULT_PORTFOLIO,
+      ...seed,
+      updatedAt: serverTimestamp(),
     });
   }
 }
 
 /**
- * Verifies the user document exists in Firestore.
- * Returns true if the document is present and readable.
+ * Ensures a watchlist/{uid} document exists.
+ */
+export async function initializeWatchlistDocument(uid: string): Promise<void> {
+  const watchlistRef = doc(db, 'watchlist', uid);
+  const snap = await getDoc(watchlistRef);
+  if (!snap.exists()) {
+    await setDoc(watchlistRef, { stocks: [] } satisfies WatchlistDoc);
+  }
+}
+
+/**
+ * Verifies the user profile document exists in Firestore.
  */
 export async function verifyUserDocument(uid: string): Promise<boolean> {
-  const userRef = doc(db, 'users', uid);
-  const snapshot = await getDoc(userRef);
-  return snapshot.exists();
+  const snap = await getDoc(doc(db, 'users', uid));
+  return snap.exists();
 }

@@ -66,8 +66,9 @@ export function PortfolioCard() {
         </div>
         <div>
           <h3 className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider mb-1">Today's P/L</h3>
-          <div className="text-lg font-mono font-semibold text-success">
-            +₹0 <span className="text-xs ml-0.5 opacity-80">(+0.00%)</span>
+          <div className={`text-lg font-mono font-semibold ${(profile?.todayProfitLoss ?? 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
+            {formatINRWithSign(profile?.todayProfitLoss ?? 0)}
+            <span className="text-xs ml-0.5 opacity-80">(+0.00%)</span>
           </div>
         </div>
       </div>
