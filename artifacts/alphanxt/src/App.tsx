@@ -8,11 +8,21 @@ import SplashPage from '@/pages/SplashPage';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
 import DashboardPage from '@/pages/DashboardPage';
+import MarketsPage from '@/pages/MarketsPage';
+import AssetDetailPage from '@/pages/AssetDetailPage';
 import { BrandLogo } from '@/components/ui/Brand';
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 
 const queryClient = new QueryClient();
+
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+    </div>
+  );
+}
 
 function AuthGuard() {
   const { user, loading } = useAuth();
@@ -33,10 +43,10 @@ function AuthGuard() {
       <div className="flex flex-col items-center gap-4 z-10">
         <BrandLogo />
         <div className="w-32 h-1 bg-secondary rounded-full overflow-hidden relative mt-4">
-          <motion.div 
-            initial={{ x: "-100%" }}
-            animate={{ x: "100%" }}
-            transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+          <motion.div
+            initial={{ x: '-100%' }}
+            animate={{ x: '100%' }}
+            transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
             className="absolute inset-y-0 w-1/2 bg-primary rounded-full"
           />
         </div>
@@ -55,15 +65,36 @@ function ProtectedDashboard() {
     }
   }, [user, loading, setLocation]);
 
-  if (loading || !user) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
-      </div>
-    );
-  }
-
+  if (loading || !user) return <LoadingScreen />;
   return <DashboardPage />;
+}
+
+function ProtectedMarketsPage() {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user) return <LoadingScreen />;
+  return <MarketsPage />;
+}
+
+function ProtectedAssetDetailPage({ params }: { params: { symbol: string } }) {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user) return <LoadingScreen />;
+  return <AssetDetailPage symbol={params.symbol} />;
 }
 
 function Router() {
@@ -73,9 +104,9 @@ function Router() {
       <Route path="/splash" component={SplashPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
-      
       <Route path="/dashboard" component={ProtectedDashboard} />
-      
+      <Route path="/markets" component={ProtectedMarketsPage} />
+      <Route path="/markets/:symbol" component={ProtectedAssetDetailPage} />
       <Route component={NotFound} />
     </Switch>
   );
