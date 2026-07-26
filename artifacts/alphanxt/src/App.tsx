@@ -45,6 +45,27 @@ function AuthGuard() {
   );
 }
 
+function ProtectedDashboard() {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+      </div>
+    );
+  }
+
+  return <DashboardPage />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -53,28 +74,7 @@ function Router() {
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
       
-      <Route path="/dashboard">
-        {() => {
-          const { user, loading } = useAuth();
-          const [, setLocation] = useLocation();
-          
-          useEffect(() => {
-            if (!loading && !user) {
-              setLocation('/login');
-            }
-          }, [user, loading, setLocation]);
-
-          if (loading || !user) {
-            return (
-              <div className="min-h-screen bg-background flex items-center justify-center">
-                <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
-              </div>
-            );
-          }
-          
-          return <DashboardPage />;
-        }}
-      </Route>
+      <Route path="/dashboard" component={ProtectedDashboard} />
       
       <Route component={NotFound} />
     </Switch>
