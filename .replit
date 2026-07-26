@@ -21,3 +21,13 @@ timeoutMs = 20000
 
 [nix]
 packages = ["nano"]
+
+[userenv]
+
+[userenv.shared]
+VITE_FIREBASE_API_KEY = "AIzaSyBiGqfzLZwG3N1Nv4L4ezMaErBmv0FpkxM"
+VITE_FIREBASE_APP_ID = "1:877735817260:web:de8cdab926dbf352eda189"
+VITE_FIREBASE_AUTH_DOMAIN = "alphanxt-40c0f.firebaseapp.com"
+VITE_FIREBASE_MESSAGING_SENDER_ID = "877735817260"
+VITE_FIREBASE_PROJECT_ID = "alphanxt-40c0f"
+VITE_FIREBASE_STORAGE_BUCKET = "alphanxt-40c0f.firebasestorage.app"
