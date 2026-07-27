@@ -10,6 +10,8 @@ import RegisterPage from '@/pages/RegisterPage';
 import DashboardPage from '@/pages/DashboardPage';
 import MarketsPage from '@/pages/MarketsPage';
 import AssetDetailPage from '@/pages/AssetDetailPage';
+import TradePage from '@/pages/TradePage';
+import PortfolioPage from '@/pages/PortfolioPage';
 import { BrandLogo } from '@/components/ui/Brand';
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -97,6 +99,48 @@ function ProtectedAssetDetailPage({ params }: { params: { symbol: string } }) {
   return <AssetDetailPage symbol={params.symbol} />;
 }
 
+function ProtectedTradePage() {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user) return <LoadingScreen />;
+  return <TradePage />;
+}
+
+function ProtectedTradeSymbolPage({ params }: { params: { symbol: string } }) {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user) return <LoadingScreen />;
+  return <TradePage symbol={params.symbol} />;
+}
+
+function ProtectedPortfolioPage() {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user) return <LoadingScreen />;
+  return <PortfolioPage />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -107,6 +151,9 @@ function Router() {
       <Route path="/dashboard" component={ProtectedDashboard} />
       <Route path="/markets" component={ProtectedMarketsPage} />
       <Route path="/markets/:symbol" component={ProtectedAssetDetailPage} />
+      <Route path="/trade" component={ProtectedTradePage} />
+      <Route path="/trade/:symbol" component={ProtectedTradeSymbolPage} />
+      <Route path="/portfolio" component={ProtectedPortfolioPage} />
       <Route component={NotFound} />
     </Switch>
   );
