@@ -11,6 +11,23 @@ env = { "CI" = "true" }
 [workflows]
 runButton = "Project"
 
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "artifacts/alphanxt: web"
+
+[[workflows.workflow]]
+name = "artifacts/alphanxt: web"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=25187 BASE_PATH=/ pnpm --filter @workspace/alphanxt run dev"
+
 [agent]
 stack = "PNPM_WORKSPACE"
 expertMode = true
