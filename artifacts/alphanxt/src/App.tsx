@@ -12,6 +12,7 @@ import MarketsPage from '@/pages/MarketsPage';
 import AssetDetailPage from '@/pages/AssetDetailPage';
 import TradePage from '@/pages/TradePage';
 import PortfolioPage from '@/pages/PortfolioPage';
+import ProfilePage from '@/pages/ProfilePage';
 import { BrandLogo } from '@/components/ui/Brand';
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -141,6 +142,20 @@ function ProtectedPortfolioPage() {
   return <PortfolioPage />;
 }
 
+function ProtectedProfilePage() {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user) return <LoadingScreen />;
+  return <ProfilePage />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -154,6 +169,7 @@ function Router() {
       <Route path="/trade" component={ProtectedTradePage} />
       <Route path="/trade/:symbol" component={ProtectedTradeSymbolPage} />
       <Route path="/portfolio" component={ProtectedPortfolioPage} />
+      <Route path="/profile" component={ProtectedProfilePage} />
       <Route component={NotFound} />
     </Switch>
   );
