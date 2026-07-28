@@ -3,6 +3,7 @@ import { useLocation } from 'wouter';
 import {
   ChevronLeft,
   TrendingUp,
+  TrendingDown,
   Minus,
   Plus,
   Loader2,
@@ -148,27 +149,34 @@ export default function TradePage({ symbol }: TradePageProps) {
 
       {/* Scrollable content */}
       <main className="flex-1 overflow-y-auto px-4 pt-[72px] pb-8 space-y-4">
-        {/* BUY / SELL toggle */}
-        <div className="grid grid-cols-2 gap-1.5 bg-card border border-border rounded-xl p-1">
-          {(['BUY', 'SELL'] as TradeSide[]).map((s) => (
-            <button
-              key={s}
-              onClick={() => {
-                setSide(s);
-                reset();
-                setQtyStr('1');
-              }}
-              className={`py-2.5 rounded-lg font-mono font-semibold text-sm transition-all ${
-                side === s
-                  ? s === 'BUY'
-                    ? 'bg-emerald-500 text-white shadow-sm'
-                    : 'bg-red-500 text-white shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {s}
-            </button>
-          ))}
+        {/* UP / DOWN toggle */}
+        <div className="grid grid-cols-2 gap-3">
+          {(['BUY', 'SELL'] as TradeSide[]).map((s) => {
+            const isUp = s === 'BUY';
+            const isActive = side === s;
+            return (
+              <button
+                key={s}
+                onClick={() => {
+                  setSide(s);
+                  reset();
+                  setQtyStr('1');
+                }}
+                className={`flex items-center justify-center gap-2 py-4 rounded-xl font-mono font-bold text-base transition-all border ${
+                  isActive
+                    ? isUp
+                      ? 'bg-emerald-500 border-emerald-400 text-white shadow-[0_0_20px_rgba(16,185,129,0.35)]'
+                      : 'bg-red-500 border-red-400 text-white shadow-[0_0_20px_rgba(239,68,68,0.35)]'
+                    : isUp
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/15'
+                      : 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/15'
+                }`}
+              >
+                {isUp ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                {isUp ? 'UP' : 'DOWN'}
+              </button>
+            );
+          })}
         </div>
 
         {/* Order type */}
@@ -337,7 +345,7 @@ export default function TradePage({ symbol }: TradePageProps) {
             >
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <p className="text-xs font-mono">
-                {side === 'BUY' ? 'Buy' : 'Sell'} order placed successfully!
+                {side === 'BUY' ? 'Up' : 'Down'} order placed successfully!
               </p>
             </motion.div>
           )}
@@ -353,7 +361,11 @@ export default function TradePage({ symbol }: TradePageProps) {
               : 'bg-red-500 text-white hover:bg-red-600'
           }`}
         >
-          {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : `Place ${side} Order`}
+          {isSubmitting ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            `Place ${side === 'BUY' ? 'Up' : 'Down'} Order`
+          )}
         </button>
 
         <p className="text-center font-mono text-[10px] text-muted-foreground pb-2">
@@ -363,3 +375,4 @@ export default function TradePage({ symbol }: TradePageProps) {
     </div>
   );
 }
+
