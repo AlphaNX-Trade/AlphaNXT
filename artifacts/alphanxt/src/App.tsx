@@ -13,6 +13,9 @@ import AssetDetailPage from '@/pages/AssetDetailPage';
 import TradePage from '@/pages/TradePage';
 import PortfolioPage from '@/pages/PortfolioPage';
 import ProfilePage from '@/pages/ProfilePage';
+import LearnPage from '@/pages/LearnPage';
+import TopicLessonPage from '@/pages/TopicLessonPage';
+import QuizPage from '@/pages/QuizPage';
 import { BrandLogo } from '@/components/ui/Brand';
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -156,6 +159,48 @@ function ProtectedProfilePage() {
   return <ProfilePage />;
 }
 
+function ProtectedLearnPage() {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user) return <LoadingScreen />;
+  return <LearnPage />;
+}
+
+function ProtectedTopicLessonPage({ params }: { params: { topicId: string } }) {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user) return <LoadingScreen />;
+  return <TopicLessonPage topicId={params.topicId} />;
+}
+
+function ProtectedQuizPage({ params }: { params: { topicId: string } }) {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user) return <LoadingScreen />;
+  return <QuizPage topicId={params.topicId} />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -170,6 +215,9 @@ function Router() {
       <Route path="/trade/:symbol" component={ProtectedTradeSymbolPage} />
       <Route path="/portfolio" component={ProtectedPortfolioPage} />
       <Route path="/profile" component={ProtectedProfilePage} />
+      <Route path="/learn" component={ProtectedLearnPage} />
+      <Route path="/learn/:topicId/quiz" component={ProtectedQuizPage} />
+      <Route path="/learn/:topicId" component={ProtectedTopicLessonPage} />
       <Route component={NotFound} />
     </Switch>
   );
