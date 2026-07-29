@@ -15,6 +15,8 @@ import { getAssetBySymbol } from '@/data/marketData';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useHolding } from '@/hooks/useHolding';
 import { useTrade } from '@/hooks/useTrade';
+import { useLiveAsset } from '@/hooks/useLiveAsset';
+import { LiveChart } from '@/components/markets/LiveChart';
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { OrderTypePicker } from '@/components/trade/OrderTypePicker';
 import type { TradeSide } from '@/lib/tradingTypes';
@@ -74,16 +76,24 @@ export default function TradePage({ symbol }: TradePageProps) {
   const { profile } = useUserProfile();
   const { holding, holdingLoading } = useHolding(symbol ?? '');
   const { executeTrade, isSubmitting, lastResult, reset } = useTrade();
+  const { livePrice, liveChange, liveChangePercent, series, isLive, liveLoading, liveError } =
+    useLiveAsset(symbol);
 
   const asset = symbol ? getAssetBySymbol(symbol) : undefined;
 
   // Show select-asset screen when no valid symbol
   if (!symbol || !asset) return <SelectAssetScreen />;
 
+  // Use live price when available; fall back to static placeholder data otherwise.
+  // This is the price actually used for order calculation and validation, so
+  // P/L reflects the real market when a live feed is connected.
+  const effectivePrice = livePrice ?? asset.price;
+  const effectiveChangePercent = liveChangePercent ?? asset.changePercent;
+
   const qty = Math.max(0, parseInt(qtyStr, 10) || 0);
-  const totalAmount = Math.round(qty * asset.price * 100) / 100;
+  const totalAmount = Math.round(qty * effectivePrice * 100) / 100;
   const virtualBalance = profile?.virtualBalance ?? 0;
-  const isPositive = asset.change >= 0;
+  const isPositive = (liveChange ?? asset.change) >= 0;
 
   // Client-side validation (preview only — server validates too)
   const validationError = (): string | null => {
@@ -103,7 +113,7 @@ export default function TradePage({ symbol }: TradePageProps) {
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
-    const result = await executeTrade(side, asset.symbol, asset.name, qty, asset.price);
+    const result = await executeTrade(side, asset.symbol, asset.name, qty, effectivePrice);
     if (result.success) {
       setShowSuccess(true);
       setQtyStr('1');
@@ -120,7 +130,7 @@ export default function TradePage({ symbol }: TradePageProps) {
 
   const handleMax = () => {
     if (side === 'BUY') {
-      const maxQty = Math.floor(virtualBalance / asset.price);
+      const maxQty = Math.floor(virtualBalance / effectivePrice);
       setQtyStr(String(Math.max(1, maxQty)));
     } else {
       setQtyStr(String(holding?.quantity ?? 1));
@@ -149,6 +159,15 @@ export default function TradePage({ symbol }: TradePageProps) {
 
       {/* Scrollable content */}
       <main className="flex-1 overflow-y-auto px-4 pt-[72px] pb-8 space-y-4">
+        {/* Live chart */}
+        <LiveChart
+          series={series}
+          isLive={isLive}
+          loading={liveLoading}
+          error={liveError}
+          isPositive={isPositive}
+        />
+
         {/* UP / DOWN toggle */}
         <div className="grid grid-cols-2 gap-3">
           {(['BUY', 'SELL'] as TradeSide[]).map((s) => {
@@ -184,14 +203,21 @@ export default function TradePage({ symbol }: TradePageProps) {
 
         {/* Market price */}
         <div className="bg-card border border-border rounded-xl px-4 py-3 flex items-center justify-between">
-          <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-            Market Price
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              Market Price
+            </span>
+            {isLive && (
+              <span className="font-mono text-[9px] uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                Live
+              </span>
+            )}
+          </div>
           <div className="flex items-baseline gap-2">
-            <span className="font-mono font-semibold text-foreground">{fmt(asset.price)}</span>
+            <span className="font-mono font-semibold text-foreground">{fmt(effectivePrice)}</span>
             <span className={`font-mono text-xs ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
               {isPositive ? '+' : ''}
-              {asset.changePercent.toFixed(2)}%
+              {effectiveChangePercent.toFixed(2)}%
             </span>
           </div>
         </div>
@@ -241,7 +267,7 @@ export default function TradePage({ symbol }: TradePageProps) {
 
           <div className="flex justify-between text-sm">
             <span className="font-mono text-muted-foreground">Price per share</span>
-            <span className="font-mono text-foreground">{fmt(asset.price)}</span>
+            <span className="font-mono text-foreground">{fmt(effectivePrice)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="font-mono text-muted-foreground">Quantity</span>
@@ -293,7 +319,7 @@ export default function TradePage({ symbol }: TradePageProps) {
                   <div className="flex justify-between text-xs">
                     <span className="font-mono text-muted-foreground">Est. Realized P/L</span>
                     {(() => {
-                      const pl = (asset.price - holding.avgBuyPrice) * qty;
+                      const pl = (effectivePrice - holding.avgBuyPrice) * qty;
                       const sign = pl >= 0 ? '+' : '';
                       return (
                         <span
@@ -375,4 +401,3 @@ export default function TradePage({ symbol }: TradePageProps) {
     </div>
   );
 }
-
