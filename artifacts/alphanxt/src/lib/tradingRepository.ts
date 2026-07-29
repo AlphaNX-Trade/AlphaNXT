@@ -27,6 +27,7 @@ async function writeTransaction(
   quantity: number,
   price: number,
   totalAmount: number,
+  extra?: Record<string, number>,
 ): Promise<void> {
   await addDoc(collection(db, 'transactions'), {
     uid,
@@ -37,6 +38,7 @@ async function writeTransaction(
     price,
     totalAmount,
     timestamp: serverTimestamp(),
+    ...extra,
   });
 }
 
@@ -48,6 +50,8 @@ export async function executeBuy(
   companyName: string,
   quantity: number,
   price: number,
+  plannedStopLoss?: number,
+  plannedTakeProfit?: number,
 ): Promise<TradeResult> {
   if (!Number.isFinite(quantity) || quantity <= 0) {
     return {
@@ -88,6 +92,8 @@ export async function executeBuy(
           quantity: newQty,
           avgBuyPrice: newTotalInvested / newQty,
           totalInvested: newTotalInvested,
+          // Keep the original entry timestamp and risk plan — averaging in
+          // more shares doesn't reset when the position was first opened.
         });
       } else {
         const newHolding: HoldingDoc = {
@@ -96,6 +102,9 @@ export async function executeBuy(
           quantity,
           avgBuyPrice: price,
           totalInvested: totalCost,
+          firstBuyAt: serverTimestamp() as unknown as HoldingDoc['firstBuyAt'],
+          ...(plannedStopLoss !== undefined ? { plannedStopLoss } : {}),
+          ...(plannedTakeProfit !== undefined ? { plannedTakeProfit } : {}),
         };
         tx.set(holdingRef, newHolding);
       }
@@ -106,7 +115,10 @@ export async function executeBuy(
       });
     });
 
-    await writeTransaction(uid, symbol, companyName, 'BUY', quantity, price, totalCost);
+    await writeTransaction(uid, symbol, companyName, 'BUY', quantity, price, totalCost, {
+      ...(plannedStopLoss !== undefined ? { plannedStopLoss } : {}),
+      ...(plannedTakeProfit !== undefined ? { plannedTakeProfit } : {}),
+    });
     return { success: true };
   } catch (err) {
     return toTradeResult(err);
@@ -132,6 +144,8 @@ export async function executeSell(
   const totalAmount = Math.round(quantity * price * 100) / 100;
   const portfolioRef = doc(db, 'portfolio', uid);
   const holdingRef = doc(db, 'holdings', uid, 'stocks', symbol);
+
+  let completedTrade: TradeResult['completedTrade'];
 
   try {
     await runTransaction(db, async (tx) => {
@@ -164,6 +178,16 @@ export async function executeSell(
       const currentTotalPL = (portfolioSnap.data().totalProfitLoss as number) ?? 0;
       const realizedPL = (price - h.avgBuyPrice) * quantity;
 
+      const firstBuyMs = h.firstBuyAt?.toMillis?.() ?? Date.now();
+      completedTrade = {
+        entryPrice: h.avgBuyPrice,
+        exitPrice: price,
+        quantity,
+        holdingDurationMs: Math.max(0, Date.now() - firstBuyMs),
+        plannedStopLoss: h.plannedStopLoss,
+        plannedTakeProfit: h.plannedTakeProfit,
+      };
+
       const newQty = h.quantity - quantity;
       if (newQty === 0) {
         tx.delete(holdingRef);
@@ -181,8 +205,12 @@ export async function executeSell(
       });
     });
 
-    await writeTransaction(uid, symbol, companyName, 'SELL', quantity, price, totalAmount);
-    return { success: true };
+    await writeTransaction(uid, symbol, companyName, 'SELL', quantity, price, totalAmount, {
+      entryPrice: completedTrade!.entryPrice,
+      realizedPL: (price - completedTrade!.entryPrice) * quantity,
+      holdingDurationMs: completedTrade!.holdingDurationMs,
+    });
+    return { success: true, completedTrade };
   } catch (err) {
     return toTradeResult(err);
   }
