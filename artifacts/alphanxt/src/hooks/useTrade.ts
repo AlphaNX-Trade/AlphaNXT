@@ -10,6 +10,8 @@ interface UseTradeResult {
     companyName: string,
     quantity: number,
     price: number,
+    plannedStopLoss?: number,
+    plannedTakeProfit?: number,
   ) => Promise<TradeResult>;
   isSubmitting: boolean;
   lastResult: TradeResult | null;
@@ -27,6 +29,8 @@ export function useTrade(): UseTradeResult {
     companyName: string,
     quantity: number,
     price: number,
+    plannedStopLoss?: number,
+    plannedTakeProfit?: number,
   ): Promise<TradeResult> => {
     if (!user) {
       const result: TradeResult = {
@@ -43,7 +47,7 @@ export function useTrade(): UseTradeResult {
     try {
       const result =
         side === 'BUY'
-          ? await executeBuy(user.uid, symbol, companyName, quantity, price)
+          ? await executeBuy(user.uid, symbol, companyName, quantity, price, plannedStopLoss, plannedTakeProfit)
           : await executeSell(user.uid, symbol, companyName, quantity, price);
       setLastResult(result);
       return result;
