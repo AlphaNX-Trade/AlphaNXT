@@ -1,0 +1,79 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users
+    match /users/{uid} {
+      allow read, write: if request.auth != null &&
+        request.auth.uid == uid;
+    }
+
+    // Portfolio
+    match /portfolio/{uid} {
+      allow read, write: if request.auth != null &&
+        request.auth.uid == uid;
+    }
+
+    // Watchlist
+    match /watchlist/{uid} {
+      allow read, write: if request.auth != null &&
+        request.auth.uid == uid;
+    }
+
+    // Transactions
+    match /transactions/{docId} {
+      allow read: if request.auth != null &&
+        resource.data.uid == request.auth.uid;
+
+      allow create: if request.auth != null &&
+        request.resource.data.uid == request.auth.uid;
+    }
+
+    // Notifications
+    match /notifications/{uid} {
+      allow read, write: if request.auth != null &&
+        request.auth.uid == uid;
+    }
+
+    // Settings
+    match /settings/{uid} {
+      allow read, write: if request.auth != null &&
+        request.auth.uid == uid;
+    }
+
+    // Public market data
+    match /market_data/{document=**} {
+      allow read: if true;
+    }
+
+    // Courses (public)
+    match /courses/{document=**} {
+      allow read: if true;
+    }
+
+    // Lessons (public)
+    match /lessons/{document=**} {
+      allow read: if true;
+    }
+
+    // Leaderboard (public)
+    match /leaderboard/{document=**} {
+      allow read: if true;
+    }
+
+    // Badges (public)
+    match /badges/{document=**} {
+      allow read: if true;
+    }
+
+    // Admin collections
+    match /admins/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /admin_logs/{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
