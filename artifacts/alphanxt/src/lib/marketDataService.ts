@@ -39,7 +39,16 @@ export function toProviderSymbol(internalSymbol: string): string | null {
 
 export interface PricePoint {
   time: string; // ISO-ish timestamp string as returned by the provider
-  price: number;
+  price: number; // close — kept for backwards compatibility with the area chart
+}
+
+export interface CandlePoint {
+  time: number; // unix seconds — required format for lightweight-charts
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
 }
 
 export interface LiveQuoteResult {
@@ -47,25 +56,28 @@ export interface LiveQuoteResult {
   change: number;
   changePercent: number;
   series: PricePoint[];
+  candles: CandlePoint[];
 }
 
 interface TwelveDataTimeSeriesResponse {
   status?: 'ok' | 'error';
   code?: number;
   message?: string;
-  values?: { datetime: string; close: string }[];
+  values?: { datetime: string; open: string; high: string; low: string; close: string; volume?: string }[];
   meta?: { previous_close?: string };
 }
 
+export type ChartTimeframe = '1min' | '5min' | '15min' | '1h' | '1day' | '1week' | '1month';
+
 /**
- * Fetches recent intraday candles for a symbol. The most recent candle's
- * close doubles as the "live" price, so one call covers both the chart
- * and the current price — minimizing API usage against the free-tier quota.
+ * Fetches recent candles for a symbol. The most recent candle's close
+ * doubles as the "live" price, so one call covers both the chart and the
+ * current price — minimizing API usage against the free-tier quota.
  */
 export async function fetchLiveQuote(
   internalSymbol: string,
-  interval: '1min' | '5min' = '5min',
-  outputsize = 30,
+  interval: ChartTimeframe = '5min',
+  outputsize = 60,
 ): Promise<LiveQuoteResult> {
   if (!API_KEY) {
     throw new Error('Live market data is not configured (missing API key).');
@@ -90,9 +102,21 @@ export async function fetchLiveQuote(
   }
 
   // Twelve Data returns newest-first; reverse to chronological order for charting.
-  const series: PricePoint[] = [...data.values]
-    .reverse()
-    .map((v) => ({ time: v.datetime, price: parseFloat(v.close) }));
+  const chronological = [...data.values].reverse();
+
+  const series: PricePoint[] = chronological.map((v) => ({
+    time: v.datetime,
+    price: parseFloat(v.close),
+  }));
+
+  const candles: CandlePoint[] = chronological.map((v) => ({
+    time: Math.floor(new Date(v.datetime.replace(' ', 'T')).getTime() / 1000),
+    open: parseFloat(v.open),
+    high: parseFloat(v.high),
+    low: parseFloat(v.low),
+    close: parseFloat(v.close),
+    volume: v.volume ? parseFloat(v.volume) : 0,
+  }));
 
   const latest = series[series.length - 1].price;
   const prevClose = data.meta?.previous_close
@@ -102,5 +126,5 @@ export async function fetchLiveQuote(
   const change = latest - prevClose;
   const changePercent = prevClose !== 0 ? (change / prevClose) * 100 : 0;
 
-  return { price: latest, change, changePercent, series };
+  return { price: latest, change, changePercent, series, candles };
 }
