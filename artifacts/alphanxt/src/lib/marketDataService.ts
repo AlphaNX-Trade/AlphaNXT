@@ -1,49 +1,36 @@
 /**
- * Real market data integration via Twelve Data (https://twelvedata.com).
- * Free tier: 800 requests/day, 8 requests/minute — polling intervals in
- * useLiveAsset.ts are tuned to stay well under this budget.
- *
- * Requires VITE_TWELVE_DATA_API_KEY to be set (Replit: add it under the
- * Secrets tab). Falls back gracefully — callers should keep showing the
- * static placeholder price/chart if this service reports an error.
+ * Real market data integration via Twelve Data
  */
 
-const API_BASE = 'https://api.twelvedata.com';
+const API_BASE = "https://api.twelvedata.com";
 const API_KEY = import.meta.env.VITE_TWELVE_DATA_API_KEY as string | undefined;
 
-/**
- * Maps our internal app symbols to Twelve Data's `symbol:exchange` format.
- * Extend this as more assets are added to marketData.ts.
- */
 const SYMBOL_MAP: Record<string, string> = {
-  RELIANCE: 'RELIANCE:NSE',
-  TCS: 'TCS:NSE',
-  INFY: 'INFY:NSE',
-  HDFCBANK: 'HDFCBANK:NSE',
-  ICICIBANK: 'ICICIBANK:NSE',
-  SBIN: 'SBIN:NSE',
-  TATAMOTORS: 'TATAMOTORS:NSE',
-  LT: 'LT:NSE',
-  NIFTY50: 'NIFTY 50:NSE',
-  BANKNIFTY: 'NIFTY BANK:NSE',
-  SENSEX: 'SENSEX:BSE',
+  RELIANCE: "RELIANCE:NSE",
+  TCS: "TCS:NSE",
+  INFY: "INFY:NSE",
+  HDFCBANK: "HDFCBANK:NSE",
+  ICICIBANK: "ICICIBANK:NSE",
+  SBIN: "SBIN:NSE",
+  TATAMOTORS: "TATAMOTORS:NSE",
+  LT: "LT:NSE",
 };
 
-export function isLiveDataConfigured(): boolean {
-  return Boolean(API_KEY);
+export function isLiveDataConfigured() {
+  return !!API_KEY;
 }
 
-export function toProviderSymbol(internalSymbol: string): string | null {
-  return SYMBOL_MAP[internalSymbol] ?? null;
+export function toProviderSymbol(symbol: string) {
+  return SYMBOL_MAP[symbol] ?? null;
 }
 
 export interface PricePoint {
-  time: string; // ISO-ish timestamp string as returned by the provider
-  price: number; // close — kept for backwards compatibility with the area chart
+  time: string;
+  price: number;
 }
 
 export interface CandlePoint {
-  time: number; // unix seconds — required format for lightweight-charts
+  time: number;
   open: number;
   high: number;
   low: number;
@@ -59,72 +46,95 @@ export interface LiveQuoteResult {
   candles: CandlePoint[];
 }
 
-interface TwelveDataTimeSeriesResponse {
-  status?: 'ok' | 'error';
-  code?: number;
+export type ChartTimeframe =
+  | "1min"
+  | "5min"
+  | "15min"
+  | "1h"
+  | "1day"
+  | "1week"
+  | "1month";
+
+interface TwelveResponse {
+  status?: string;
   message?: string;
-  values?: { datetime: string; open: string; high: string; low: string; close: string; volume?: string }[];
-  meta?: { previous_close?: string };
+  values?: any[];
+  meta?: {
+    previous_close?: string;
+  };
 }
 
-export type ChartTimeframe = '1min' | '5min' | '15min' | '1h' | '1day' | '1week' | '1month';
-
-/**
- * Fetches recent candles for a symbol. The most recent candle's close
- * doubles as the "live" price, so one call covers both the chart and the
- * current price — minimizing API usage against the free-tier quota.
- */
 export async function fetchLiveQuote(
   internalSymbol: string,
-  interval: ChartTimeframe = '5min',
-  outputsize = 60,
+  interval: ChartTimeframe = "5min",
+  outputsize = 60
 ): Promise<LiveQuoteResult> {
+
   if (!API_KEY) {
-    throw new Error('Live market data is not configured (missing API key).');
+    throw new Error("Missing Twelve Data API Key");
   }
 
-  const providerSymbol = toProviderSymbol(internalSymbol);
-  if (!providerSymbol) {
-    throw new Error(`No live data mapping for symbol "${internalSymbol}".`);
+  const symbol = toProviderSymbol(internalSymbol);
+
+  if (!symbol) {
+    throw new Error("Unsupported Symbol");
   }
 
-  const url = `${API_BASE}/time_series?symbol=${encodeURIComponent(providerSymbol)}&interval=${interval}&outputsize=${outputsize}&apikey=${API_KEY}`;
+  const url =
+    `${API_BASE}/time_series` +
+    `?symbol=${encodeURIComponent(symbol)}` +
+    `&interval=${interval}` +
+    `&outputsize=${outputsize}` +
+    `&apikey=${API_KEY}`;
 
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Market data request failed (${res.status}).`);
+  console.log(url);
+
+  const response = await fetch(url);
+
+  const text = await response.text();
+
+  console.log(text);
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
   }
 
-  const data: TwelveDataTimeSeriesResponse = await res.json();
+  const data: TwelveResponse = JSON.parse(text);
 
-  if (data.status === 'error' || !data.values || data.values.length === 0) {
-    throw new Error(data.message ?? 'No market data returned for this symbol.');
+  if (!data.values?.length) {
+    throw new Error(data.message || "No Data");
   }
 
-  // Twelve Data returns newest-first; reverse to chronological order for charting.
-  const chronological = [...data.values].reverse();
+  const values = [...data.values].reverse();
 
-  const series: PricePoint[] = chronological.map((v) => ({
+  const series = values.map(v => ({
     time: v.datetime,
-    price: parseFloat(v.close),
+    price: Number(v.close)
   }));
 
-  const candles: CandlePoint[] = chronological.map((v) => ({
-    time: Math.floor(new Date(v.datetime.replace(' ', 'T')).getTime() / 1000),
-    open: parseFloat(v.open),
-    high: parseFloat(v.high),
-    low: parseFloat(v.low),
-    close: parseFloat(v.close),
-    volume: v.volume ? parseFloat(v.volume) : 0,
+  const candles = values.map(v => ({
+    time: Math.floor(new Date(v.datetime).getTime() / 1000),
+    open: Number(v.open),
+    high: Number(v.high),
+    low: Number(v.low),
+    close: Number(v.close),
+    volume: Number(v.volume || 0)
   }));
 
-  const latest = series[series.length - 1].price;
-  const prevClose = data.meta?.previous_close
-    ? parseFloat(data.meta.previous_close)
-    : series[0].price;
+  const latest = candles[candles.length - 1].close;
 
-  const change = latest - prevClose;
-  const changePercent = prevClose !== 0 ? (change / prevClose) * 100 : 0;
+  const previous =
+    data.meta?.previous_close
+      ? Number(data.meta.previous_close)
+      : candles[0].close;
 
-  return { price: latest, change, changePercent, series, candles };
-}
+  const change = latest - previous;
+
+  return {
+    price: latest,
+    change,
+    changePercent: (change / previous) * 100,
+    series,
+    candles
+  };
+    }
