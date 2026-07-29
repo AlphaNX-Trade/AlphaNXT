@@ -3,6 +3,8 @@ import { useLocation } from 'wouter';
 import { ChevronLeft, Share2, Loader2 } from 'lucide-react';
 import { getAssetBySymbol } from '@/data/marketData';
 import { useWatchlist } from '@/hooks/useWatchlist';
+import { useLiveAsset } from '@/hooks/useLiveAsset';
+import { LiveChart } from '@/components/markets/LiveChart';
 
 interface StatCellProps {
   label: string;
@@ -31,6 +33,8 @@ export default function AssetDetailPage({ symbol }: AssetDetailPageProps) {
 
   const asset = getAssetBySymbol(symbol);
   const inWatchlist = isInWatchlist(symbol);
+  const { livePrice, liveChange, liveChangePercent, series, isLive, liveLoading, liveError } =
+    useLiveAsset(symbol);
 
   const handleWatchlistToggle = async () => {
     if (isToggling || !asset) return;
@@ -61,7 +65,10 @@ export default function AssetDetailPage({ symbol }: AssetDetailPageProps) {
     );
   }
 
-  const isPositive = asset.change >= 0;
+  const displayPrice = livePrice ?? asset.price;
+  const displayChange = liveChange ?? asset.change;
+  const displayChangePercent = liveChangePercent ?? asset.changePercent;
+  const isPositive = displayChange >= 0;
   const changeColor = isPositive ? 'text-emerald-400' : 'text-red-400';
   const changeSign = isPositive ? '+' : '';
 
@@ -103,22 +110,33 @@ export default function AssetDetailPage({ symbol }: AssetDetailPageProps) {
         {/* Price hero */}
         <section className="pt-2">
           <p className="font-mono font-bold text-3xl text-foreground tracking-tight">
-            {fmt(asset.price)}
+            {fmt(displayPrice)}
           </p>
           <div className="flex items-baseline gap-2 mt-1">
             <span className={`font-mono text-sm ${changeColor}`}>
-              {changeSign}₹{Math.abs(asset.change).toLocaleString('en-IN', {
+              {changeSign}₹{Math.abs(displayChange).toLocaleString('en-IN', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
             </span>
             <span className={`font-mono text-sm ${changeColor}`}>
-              ({changeSign}{asset.changePercent.toFixed(2)}%)
+              ({changeSign}{displayChangePercent.toFixed(2)}%)
             </span>
           </div>
           <p className="font-mono text-[10px] text-muted-foreground mt-1.5">
-            As of today's close
+            {isLive ? 'Live market data' : "As of today's close"}
           </p>
+        </section>
+
+        {/* Live chart */}
+        <section>
+          <LiveChart
+            series={series}
+            isLive={isLive}
+            loading={liveLoading}
+            error={liveError}
+            isPositive={isPositive}
+          />
         </section>
 
         {/* Market data stats */}
