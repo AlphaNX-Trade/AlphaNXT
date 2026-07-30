@@ -19,6 +19,25 @@ function toTradeResult(err: unknown): TradeResult {
   return { success: false, error: { field: 'general', message: msg } };
 }
 
+/** UTC calendar date string (YYYY-MM-DD) — used to reset todayProfitLoss daily. */
+function todayDateString(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Heuristic 0-100 risk score, blended over time (not a rigorous statistical
+ * measure). Rises with larger position sizes relative to portfolio value and
+ * with trades that have no stop loss defined; smoothed against the previous
+ * score so a single trade doesn't swing it drastically.
+ */
+function blendRiskScore(previousScore: number, positionSizePercent: number, hasStopLoss: boolean): number {
+  const clampedPositionSize = Math.min(100, Math.max(0, positionSizePercent));
+  const noStopLossPenalty = hasStopLoss ? 0 : 15;
+  const tradeRisk = Math.min(100, clampedPositionSize * 2 + noStopLossPenalty);
+  const blended = previousScore * 0.7 + tradeRisk * 0.3;
+  return Math.round(Math.min(100, Math.max(0, blended)));
+}
+
 async function writeTransaction(
   uid: string,
   symbol: string,
@@ -76,6 +95,8 @@ export async function executeBuy(
       }
 
       const virtualBalance = portfolioSnap.data().virtualBalance as number;
+      const currentTotalInvested = (portfolioSnap.data().totalInvested as number) ?? 0;
+      const currentRiskScore = (portfolioSnap.data().riskScore as number) ?? 0;
 
       if (virtualBalance < totalCost) {
         throw new TradeError(
@@ -109,8 +130,17 @@ export async function executeBuy(
         tx.set(holdingRef, newHolding);
       }
 
+      const portfolioValueBeforeTrade = virtualBalance + currentTotalInvested;
+      const positionSizePercent =
+        portfolioValueBeforeTrade > 0 ? (totalCost / portfolioValueBeforeTrade) * 100 : 100;
+      const newTotalInvested = currentTotalInvested + totalCost;
+      const newVirtualBalance = virtualBalance - totalCost;
+
       tx.update(portfolioRef, {
-        virtualBalance: virtualBalance - totalCost,
+        virtualBalance: newVirtualBalance,
+        totalInvested: newTotalInvested,
+        portfolioValue: newVirtualBalance + newTotalInvested,
+        riskScore: blendRiskScore(currentRiskScore, positionSizePercent, plannedStopLoss !== undefined),
         updatedAt: serverTimestamp(),
       });
     });
@@ -176,6 +206,11 @@ export async function executeSell(
 
       const virtualBalance = portfolioSnap.data().virtualBalance as number;
       const currentTotalPL = (portfolioSnap.data().totalProfitLoss as number) ?? 0;
+      const currentTotalInvested = (portfolioSnap.data().totalInvested as number) ?? 0;
+      const currentTotalTrades = (portfolioSnap.data().totalTrades as number) ?? 0;
+      const currentWinningTrades = (portfolioSnap.data().winningTrades as number) ?? 0;
+      const currentTodayPL = (portfolioSnap.data().todayProfitLoss as number) ?? 0;
+      const currentTodayDate = portfolioSnap.data().todayProfitLossDate as string | undefined;
       const realizedPL = (price - h.avgBuyPrice) * quantity;
 
       const firstBuyMs = h.firstBuyAt?.toMillis?.() ?? Date.now();
@@ -189,6 +224,7 @@ export async function executeSell(
       };
 
       const newQty = h.quantity - quantity;
+      const costBasisRemoved = h.avgBuyPrice * quantity;
       if (newQty === 0) {
         tx.delete(holdingRef);
       } else {
@@ -198,9 +234,24 @@ export async function executeSell(
         });
       }
 
+      const newTotalInvested = Math.max(0, currentTotalInvested - costBasisRemoved);
+      const newVirtualBalance = virtualBalance + totalAmount;
+      const newTotalTrades = currentTotalTrades + 1;
+      const newWinningTrades = currentWinningTrades + (realizedPL >= 0 ? 1 : 0);
+
+      const today = todayDateString();
+      const newTodayPL = currentTodayDate === today ? currentTodayPL + realizedPL : realizedPL;
+
       tx.update(portfolioRef, {
-        virtualBalance: virtualBalance + totalAmount,
+        virtualBalance: newVirtualBalance,
         totalProfitLoss: currentTotalPL + realizedPL,
+        totalInvested: newTotalInvested,
+        portfolioValue: newVirtualBalance + newTotalInvested,
+        totalTrades: newTotalTrades,
+        winningTrades: newWinningTrades,
+        winRate: newTotalTrades > 0 ? (newWinningTrades / newTotalTrades) * 100 : 0,
+        todayProfitLoss: newTodayPL,
+        todayProfitLossDate: today,
         updatedAt: serverTimestamp(),
       });
     });
