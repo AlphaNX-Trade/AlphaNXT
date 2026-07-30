@@ -157,8 +157,8 @@ export default function TradePage({ symbol }: TradePageProps) {
         <div className="w-6" />
       </header>
 
-      {/* Scrollable content */}
-      <main className="flex-1 overflow-y-auto px-4 pt-[72px] pb-8 space-y-4">
+      {/* Scrollable content — everything except the sticky trade panel */}
+      <main className="flex-1 overflow-y-auto px-4 pt-[72px] pb-[340px] space-y-4">
         {/* Live chart */}
         <LiveChart
           series={series}
@@ -167,36 +167,6 @@ export default function TradePage({ symbol }: TradePageProps) {
           error={liveError}
           isPositive={isPositive}
         />
-
-        {/* UP / DOWN toggle */}
-        <div className="grid grid-cols-2 gap-3">
-          {(['BUY', 'SELL'] as TradeSide[]).map((s) => {
-            const isUp = s === 'BUY';
-            const isActive = side === s;
-            return (
-              <button
-                key={s}
-                onClick={() => {
-                  setSide(s);
-                  reset();
-                  setQtyStr('1');
-                }}
-                className={`flex items-center justify-center gap-2 py-4 rounded-xl font-mono font-bold text-base transition-all border ${
-                  isActive
-                    ? isUp
-                      ? 'bg-emerald-500 border-emerald-400 text-white shadow-[0_0_20px_rgba(16,185,129,0.35)]'
-                      : 'bg-red-500 border-red-400 text-white shadow-[0_0_20px_rgba(239,68,68,0.35)]'
-                    : isUp
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/15'
-                      : 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/15'
-                }`}
-              >
-                {isUp ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
-                {isUp ? 'UP' : 'DOWN'}
-              </button>
-            );
-          })}
-        </div>
 
         {/* Order type */}
         <OrderTypePicker />
@@ -222,118 +192,122 @@ export default function TradePage({ symbol }: TradePageProps) {
           </div>
         </div>
 
-        {/* Quantity input */}
-        <div className="bg-card border border-border rounded-xl px-4 py-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Quantity (Shares)
-            </span>
-            <button
-              onClick={handleMax}
-              className="font-mono text-[10px] uppercase tracking-widest text-primary border border-primary/30 px-2 py-0.5 rounded hover:bg-primary/10 transition-colors"
-            >
-              MAX
-            </button>
+        {/* Holding details (SELL context) */}
+        {side === 'SELL' && !holdingLoading && (
+          <div className="bg-card border border-border rounded-xl px-4 py-4 space-y-2.5">
+            <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+              Your Position
+            </p>
+            <div className="flex justify-between text-xs">
+              <span className="font-mono text-muted-foreground">You own</span>
+              <span className="font-mono text-foreground">
+                {holding ? `${holding.quantity} share${holding.quantity === 1 ? '' : 's'}` : '—'}
+              </span>
+            </div>
+            {holding && (
+              <>
+                <div className="flex justify-between text-xs">
+                  <span className="font-mono text-muted-foreground">Avg Buy Price</span>
+                  <span className="font-mono text-foreground">{fmt(holding.avgBuyPrice)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="font-mono text-muted-foreground">Est. Realized P/L</span>
+                  {(() => {
+                    const pl = (effectivePrice - holding.avgBuyPrice) * qty;
+                    const sign = pl >= 0 ? '+' : '';
+                    return (
+                      <span className={`font-mono ${pl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {sign}
+                        {fmt(pl)}
+                      </span>
+                    );
+                  })()}
+                </div>
+              </>
+            )}
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => adjustQty(-1)}
-              disabled={qty <= 1}
-              className="w-10 h-10 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors disabled:opacity-30"
-            >
-              <Minus className="w-4 h-4 text-foreground" />
-            </button>
-            <input
-              type="number"
-              min="1"
-              value={qtyStr}
-              onChange={(e) => setQtyStr(e.target.value.replace(/[^0-9]/g, ''))}
-              className="flex-1 text-center font-mono font-semibold text-2xl bg-transparent text-foreground focus:outline-none"
-            />
-            <button
-              onClick={() => adjustQty(1)}
-              className="w-10 h-10 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors"
-            >
-              <Plus className="w-4 h-4 text-foreground" />
-            </button>
+        )}
+
+        <p className="text-center font-mono text-[10px] text-muted-foreground pb-2">
+          Paper trading only — no real funds are used
+        </p>
+      </main>
+
+      {/* ── Sticky Buy/Sell panel ─────────────────────────────────────── */}
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-background/98 backdrop-blur border-t border-border px-4 pt-3 pb-4 space-y-3 z-30 shadow-[0_-8px_30px_rgba(0,0,0,0.3)]">
+        {/* UP / DOWN toggle */}
+        <div className="grid grid-cols-2 gap-3">
+          {(['BUY', 'SELL'] as TradeSide[]).map((s) => {
+            const isUp = s === 'BUY';
+            const isActive = side === s;
+            return (
+              <button
+                key={s}
+                onClick={() => {
+                  setSide(s);
+                  reset();
+                  setQtyStr('1');
+                }}
+                className={`flex items-center justify-center gap-2 py-3 rounded-xl font-mono font-bold text-sm transition-all border ${
+                  isActive
+                    ? isUp
+                      ? 'bg-emerald-500 border-emerald-400 text-white shadow-[0_0_16px_rgba(16,185,129,0.35)]'
+                      : 'bg-red-500 border-red-400 text-white shadow-[0_0_16px_rgba(239,68,68,0.35)]'
+                    : isUp
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/15'
+                      : 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/15'
+                }`}
+              >
+                {isUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                {isUp ? 'UP' : 'DOWN'}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Quantity + estimated cost, compact single row */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => adjustQty(-1)}
+            disabled={qty <= 1}
+            className="w-9 h-9 shrink-0 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors disabled:opacity-30"
+          >
+            <Minus className="w-3.5 h-3.5 text-foreground" />
+          </button>
+          <input
+            type="number"
+            min="1"
+            value={qtyStr}
+            onChange={(e) => setQtyStr(e.target.value.replace(/[^0-9]/g, ''))}
+            className="w-14 text-center font-mono font-semibold text-base bg-transparent text-foreground focus:outline-none"
+          />
+          <button
+            onClick={() => adjustQty(1)}
+            className="w-9 h-9 shrink-0 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5 text-foreground" />
+          </button>
+          <button
+            onClick={handleMax}
+            className="font-mono text-[10px] uppercase tracking-widest text-primary border border-primary/30 px-2 py-1 rounded shrink-0 hover:bg-primary/10 transition-colors"
+          >
+            MAX
+          </button>
+
+          <div className="flex-1 text-right">
+            <p className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
+              Est. Cost
+            </p>
+            <p className="font-mono text-sm font-semibold text-primary">{fmt(totalAmount)}</p>
           </div>
         </div>
 
-        {/* Order summary */}
-        <div className="bg-card border border-border rounded-xl px-4 py-4 space-y-2.5">
-          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-            Order Summary
-          </p>
-
-          <div className="flex justify-between text-sm">
-            <span className="font-mono text-muted-foreground">Price per share</span>
-            <span className="font-mono text-foreground">{fmt(effectivePrice)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="font-mono text-muted-foreground">Quantity</span>
-            <span className="font-mono text-foreground">{qty}</span>
-          </div>
-
-          <div className="h-px bg-border" />
-
-          <div className="flex justify-between">
-            <span className="font-mono text-sm font-semibold text-foreground">Total Amount</span>
-            <span className="font-mono text-sm font-semibold text-primary">{fmt(totalAmount)}</span>
-          </div>
-
-          {/* BUY — balance details */}
+        <div className="flex items-center justify-between font-mono text-[10px] text-muted-foreground px-0.5">
+          <span>Balance: {fmt(virtualBalance)}</span>
           {side === 'BUY' && (
-            <div className="pt-1 space-y-1.5 border-t border-border/50">
-              <div className="flex justify-between text-xs">
-                <span className="font-mono text-muted-foreground">Available Balance</span>
-                <span className="font-mono text-foreground">{fmt(virtualBalance)}</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="font-mono text-muted-foreground">After Trade</span>
-                <span
-                  className={`font-mono ${virtualBalance - totalAmount < 0 ? 'text-red-400' : 'text-foreground'}`}
-                >
-                  {fmt(Math.max(0, virtualBalance - totalAmount))}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* SELL — holding details */}
-          {side === 'SELL' && !holdingLoading && (
-            <div className="pt-1 space-y-1.5 border-t border-border/50">
-              <div className="flex justify-between text-xs">
-                <span className="font-mono text-muted-foreground">You own</span>
-                <span className="font-mono text-foreground">
-                  {holding
-                    ? `${holding.quantity} share${holding.quantity === 1 ? '' : 's'}`
-                    : '—'}
-                </span>
-              </div>
-              {holding && (
-                <>
-                  <div className="flex justify-between text-xs">
-                    <span className="font-mono text-muted-foreground">Avg Buy Price</span>
-                    <span className="font-mono text-foreground">{fmt(holding.avgBuyPrice)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="font-mono text-muted-foreground">Est. Realized P/L</span>
-                    {(() => {
-                      const pl = (effectivePrice - holding.avgBuyPrice) * qty;
-                      const sign = pl >= 0 ? '+' : '';
-                      return (
-                        <span
-                          className={`font-mono ${pl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
-                        >
-                          {sign}
-                          {fmt(pl)}
-                        </span>
-                      );
-                    })()}
-                  </div>
-                </>
-              )}
-            </div>
+            <span className={virtualBalance - totalAmount < 0 ? 'text-red-400' : ''}>
+              After: {fmt(Math.max(0, virtualBalance - totalAmount))}
+            </span>
           )}
         </div>
 
@@ -344,33 +318,31 @@ export default function TradePage({ symbol }: TradePageProps) {
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
-              className="flex items-start gap-2.5 bg-destructive/10 border border-destructive/30 text-destructive rounded-xl px-4 py-3"
+              className="flex items-start gap-2 bg-destructive/10 border border-destructive/30 text-destructive rounded-lg px-3 py-2"
             >
-              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-              <p className="text-xs font-mono leading-relaxed">{lastResult.error.message}</p>
+              <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <p className="text-[11px] font-mono leading-relaxed">{lastResult.error.message}</p>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Client-side warning (only show when qty is filled) */}
         {!lastResult?.error && clientError && qty > 0 && (
-          <div className="flex items-start gap-2.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-xl px-4 py-3">
-            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-            <p className="text-xs font-mono leading-relaxed">{clientError}</p>
+          <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-lg px-3 py-2">
+            <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <p className="text-[11px] font-mono leading-relaxed">{clientError}</p>
           </div>
         )}
 
-        {/* Success */}
         <AnimatePresence>
           {showSuccess && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="flex items-center gap-2.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl px-4 py-3"
+              className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-lg px-3 py-2"
             >
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <p className="text-xs font-mono">
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              <p className="text-[11px] font-mono">
                 {side === 'BUY' ? 'Up' : 'Down'} order placed successfully!
               </p>
             </motion.div>
@@ -393,11 +365,7 @@ export default function TradePage({ symbol }: TradePageProps) {
             `Place ${side === 'BUY' ? 'Up' : 'Down'} Order`
           )}
         </button>
-
-        <p className="text-center font-mono text-[10px] text-muted-foreground pb-2">
-          Paper trading only — no real funds are used
-        </p>
-      </main>
+      </div>
     </div>
   );
 }
