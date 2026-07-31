@@ -1,51 +1,52 @@
 /**
- * Real market data integration via Twelve Data (https://twelvedata.com).
- * Free tier: 800 requests/day, 8 requests/minute — polling intervals in
- * useLiveAsset.ts are tuned to stay well under this budget.
+ * Live market data via our own Firebase Cloud Function (`nseQuote`), which
+ * proxies NSE India's public JSON endpoints server-side.
  *
- * Requires VITE_TWELVE_DATA_API_KEY to be set (Replit: add it under the
- * Secrets tab, then STOP and RESTART the Repl — Vite only reads env vars
- * at server start, so a running dev server will not pick up a newly added
- * secret without a restart). Falls back gracefully — callers should keep
- * showing the static placeholder price/chart if this service reports an error.
+ * WHY A PROXY: NSE has no official key-based API and its endpoints require
+ * session cookies + can't be called cross-origin from a browser. The Cloud
+ * Function in /functions/src/index.ts handles that and returns clean JSON.
+ *
+ * HONESTY NOTE: This uses NSE's unofficial internal endpoints (community
+ * reverse-engineered, not a published API), so it can break without notice.
+ * It also only provides *intraday* data reconstructed from tick prices — NSE's
+ * public feed has no historical daily/weekly/monthly candles, so those
+ * timeframes intentionally throw a clear "not supported" error rather than
+ * silently showing wrong data.
  */
 
-const API_BASE = 'https://api.twelvedata.com';
-const API_KEY = import.meta.env.VITE_TWELVE_DATA_API_KEY as string | undefined;
+const PROJECT_ID = import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined;
+const FUNCTION_REGION = 'us-central1';
 
-/**
- * Maps our internal app symbols to Twelve Data's primary symbol format
- * (`SYMBOL:EXCHANGE`, e.g. "RELIANCE:NSE"). If that format 404s or errors,
- * fetchLiveQuote() automatically retries using separate `symbol` + `exchange`
- * query params, since Twelve Data has historically accepted both, and which
- * one resolves can depend on plan/account settings.
- */
-const SYMBOL_MAP: Record<string, { symbol: string; exchange: string }> = {
-  RELIANCE: { symbol: 'RELIANCE', exchange: 'NSE' },
-  TCS: { symbol: 'TCS', exchange: 'NSE' },
-  INFY: { symbol: 'INFY', exchange: 'NSE' },
-  HDFCBANK: { symbol: 'HDFCBANK', exchange: 'NSE' },
-  ICICIBANK: { symbol: 'ICICIBANK', exchange: 'NSE' },
-  SBIN: { symbol: 'SBIN', exchange: 'NSE' },
-  TATAMOTORS: { symbol: 'TATAMOTORS', exchange: 'NSE' },
-  LT: { symbol: 'LT', exchange: 'NSE' },
-  NIFTY50: { symbol: 'NIFTY 50', exchange: 'NSE' },
-  BANKNIFTY: { symbol: 'NIFTY BANK', exchange: 'NSE' },
-  SENSEX: { symbol: 'SENSEX', exchange: 'BSE' },
-};
+function functionsBaseUrl(): string | null {
+  if (!PROJECT_ID) return null;
+  return `https://${FUNCTION_REGION}-${PROJECT_ID}.cloudfunctions.net`;
+}
+
+/** Internal symbols this proxy supports. SENSEX is excluded — it's a BSE index with no NSE endpoint. */
+const SUPPORTED_SYMBOLS = new Set([
+  'RELIANCE',
+  'TCS',
+  'INFY',
+  'HDFCBANK',
+  'ICICIBANK',
+  'SBIN',
+  'TATAMOTORS',
+  'LT',
+  'NIFTY50',
+  'BANKNIFTY',
+]);
 
 export function isLiveDataConfigured(): boolean {
-  return Boolean(API_KEY);
+  return functionsBaseUrl() !== null;
 }
 
 export function toProviderSymbol(internalSymbol: string): string | null {
-  const mapped = SYMBOL_MAP[internalSymbol];
-  return mapped ? `${mapped.symbol}:${mapped.exchange}` : null;
+  return SUPPORTED_SYMBOLS.has(internalSymbol) ? internalSymbol : null;
 }
 
 export interface PricePoint {
-  time: string; // ISO-ish timestamp string as returned by the provider
-  price: number; // close — kept for backwards compatibility with the area chart
+  time: string;
+  price: number;
 }
 
 export interface CandlePoint {
@@ -65,169 +66,97 @@ export interface LiveQuoteResult {
   candles: CandlePoint[];
 }
 
-interface TwelveDataTimeSeriesResponse {
-  status?: 'ok' | 'error';
-  code?: number;
-  message?: string;
-  values?: { datetime: string; open: string; high: string; low: string; close: string; volume?: string }[];
-  meta?: { previous_close?: string };
-}
-
 export type ChartTimeframe = '1min' | '5min' | '15min' | '1h' | '1day' | '1week' | '1month';
 
-/** Redacts the API key when logging a URL, so it never ends up in console history or bug reports. */
-function redactApiKey(url: string): string {
-  return url.replace(/apikey=[^&]+/, 'apikey=***REDACTED***');
+/** Maps a UI timeframe to the candle-bucket size (in minutes) our Cloud Function aggregates ticks into. */
+const TIMEFRAME_TO_MINUTES: Record<ChartTimeframe, number | null> = {
+  '1min': 1,
+  '5min': 5,
+  '15min': 15,
+  '1h': 60,
+  '1day': null, // not available — see HONESTY NOTE above
+  '1week': null,
+  '1month': null,
+};
+
+interface NseProxyResponse {
+  price?: number;
+  change?: number;
+  changePercent?: number;
+  candles?: CandlePoint[];
+  series?: PricePoint[];
+  error?: string;
 }
 
-/**
- * Performs one time_series request against a fully-built URL and returns the
- * raw parsed response, throwing a detailed error (including the actual
- * response body) on any failure. Always logs the request URL (key redacted)
- * and the raw response body for debugging, per the app's error-visibility
- * requirements.
- */
-async function fetchTimeSeriesRaw(url: string): Promise<TwelveDataTimeSeriesResponse> {
-  console.log('[marketDataService] Request URL:', redactApiKey(url));
+export async function fetchLiveQuote(
+  internalSymbol: string,
+  interval: ChartTimeframe = '5min',
+  _outputsize = 60,
+): Promise<LiveQuoteResult> {
+  const baseUrl = functionsBaseUrl();
+  if (!baseUrl) {
+    throw new Error('Live market data is not configured (missing Firebase project ID).');
+  }
+
+  if (!SUPPORTED_SYMBOLS.has(internalSymbol)) {
+    throw new Error(
+      internalSymbol === 'SENSEX'
+        ? 'SENSEX is a BSE index and has no free NSE data source — live data is unavailable for it.'
+        : `No live data mapping for symbol "${internalSymbol}".`,
+    );
+  }
+
+  const intervalMinutes = TIMEFRAME_TO_MINUTES[interval];
+  if (intervalMinutes === null) {
+    throw new Error(
+      `The ${interval} timeframe isn't available — the free NSE proxy only provides intraday data reconstructed from today's tick prices, not historical daily/weekly/monthly candles.`,
+    );
+  }
+
+  const url = `${baseUrl}/nseQuote?symbol=${encodeURIComponent(internalSymbol)}&interval=${intervalMinutes}`;
+  console.log('[marketDataService] Requesting:', url);
 
   let res: Response;
   try {
     res = await fetch(url);
   } catch (networkErr) {
-    console.error('[marketDataService] Network error calling Twelve Data:', networkErr);
+    console.error('[marketDataService] Network error calling nseQuote function:', networkErr);
     throw new Error(
-      `Network error reaching Twelve Data: ${networkErr instanceof Error ? networkErr.message : String(networkErr)}`,
+      `Network error reaching the NSE proxy function: ${networkErr instanceof Error ? networkErr.message : String(networkErr)}`,
     );
   }
 
-  // Read the raw body as text first — Twelve Data (and CDN-level errors in
-  // front of it) don't always return valid JSON, so parsing blindly with
-  // res.json() can itself throw and mask the real error.
   const rawBody = await res.text();
-  console.log('[marketDataService] Response status:', res.status, res.statusText);
-  console.log('[marketDataService] Response body:', rawBody);
+  console.log('[marketDataService] nseQuote response status:', res.status);
+  console.log('[marketDataService] nseQuote response body:', rawBody.slice(0, 500));
 
-  let data: TwelveDataTimeSeriesResponse;
+  let data: NseProxyResponse;
   try {
     data = JSON.parse(rawBody);
   } catch {
-    // Non-JSON response (e.g. an HTML error page from a CDN/proxy in front
-    // of the API, or a wrong path). Surface the raw body so the real cause
-    // is visible instead of a generic status code.
     throw new Error(
-      `Twelve Data returned a non-JSON response (HTTP ${res.status} ${res.statusText}). Body: ${rawBody.slice(0, 300)}`,
+      `nseQuote function returned a non-JSON response (HTTP ${res.status}). Body: ${rawBody.slice(0, 300)}`,
     );
   }
 
-  if (!res.ok) {
-    // Twelve Data's own error format is { status: "error", code, message }.
-    // Surface that message verbatim when present, since it's far more
-    // useful than the bare HTTP status.
-    const detail = data.message ?? rawBody.slice(0, 300);
-    throw new Error(`Twelve Data request failed (HTTP ${res.status}): ${detail}`);
+  if (!res.ok || data.error) {
+    throw new Error(data.error ?? `nseQuote function request failed (HTTP ${res.status}).`);
   }
 
-  if (data.status === 'error') {
-    throw new Error(data.message ?? 'Twelve Data returned an error with no message.');
+  if (
+    data.price === undefined ||
+    data.change === undefined ||
+    data.changePercent === undefined ||
+    !data.candles
+  ) {
+    throw new Error('nseQuote function returned an incomplete response.');
   }
 
-  return data;
-}
-
-function buildUrl(params: Record<string, string>): string {
-  const query = new URLSearchParams({ ...params, apikey: API_KEY ?? '' });
-  return `${API_BASE}/time_series?${query.toString()}`;
-}
-
-/**
- * Fetches recent candles for a symbol. The most recent candle's close
- * doubles as the "live" price, so one call covers both the chart and the
- * current price — minimizing API usage against the free-tier quota.
- *
- * Tries the combined `symbol=SYMBOL:EXCHANGE` format first; if that request
- * fails (non-2xx or a Twelve Data error payload — this is what commonly
- * surfaces as an HTTP 404/400 for exchange-suffixed symbols), it
- * automatically retries with `symbol` and `exchange` as separate params,
- * since Twelve Data has documented both forms and which one resolves can
- * vary by plan.
- */
-export async function fetchLiveQuote(
-  internalSymbol: string,
-  interval: ChartTimeframe = '5min',
-  outputsize = 60,
-): Promise<LiveQuoteResult> {
-  if (!API_KEY) {
-    throw new Error(
-      'Live market data is not configured: VITE_TWELVE_DATA_API_KEY is missing. Add it in Replit Secrets and restart the Repl.',
-    );
-  }
-
-  const mapped = SYMBOL_MAP[internalSymbol];
-  if (!mapped) {
-    throw new Error(`No live data mapping for symbol "${internalSymbol}".`);
-  }
-
-  let data: TwelveDataTimeSeriesResponse;
-
-  const combinedUrl = buildUrl({
-    symbol: `${mapped.symbol}:${mapped.exchange}`,
-    interval,
-    outputsize: String(outputsize),
-  });
-
-  try {
-    data = await fetchTimeSeriesRaw(combinedUrl);
-  } catch (firstErr) {
-    console.warn(
-      `[marketDataService] "symbol:exchange" format failed for ${internalSymbol}, retrying with separate params. Reason:`,
-      firstErr instanceof Error ? firstErr.message : firstErr,
-    );
-
-    const separateUrl = buildUrl({
-      symbol: mapped.symbol,
-      exchange: mapped.exchange,
-      interval,
-      outputsize: String(outputsize),
-    });
-
-    try {
-      data = await fetchTimeSeriesRaw(separateUrl);
-    } catch (secondErr) {
-      // Both formats failed — surface the second (more specific) error,
-      // but keep the first one visible in the console for full context.
-      console.error('[marketDataService] Both symbol formats failed for', internalSymbol);
-      throw secondErr;
-    }
-  }
-
-  if (!data.values || data.values.length === 0) {
-    throw new Error(`No market data returned for "${internalSymbol}".`);
-  }
-
-  // Twelve Data returns newest-first; reverse to chronological order for charting.
-  const chronological = [...data.values].reverse();
-
-  const series: PricePoint[] = chronological.map((v) => ({
-    time: v.datetime,
-    price: parseFloat(v.close),
-  }));
-
-  const candles: CandlePoint[] = chronological.map((v) => ({
-    time: Math.floor(new Date(v.datetime.replace(' ', 'T')).getTime() / 1000),
-    open: parseFloat(v.open),
-    high: parseFloat(v.high),
-    low: parseFloat(v.low),
-    close: parseFloat(v.close),
-    volume: v.volume ? parseFloat(v.volume) : 0,
-  }));
-
-  const latest = series[series.length - 1].price;
-  const prevClose = data.meta?.previous_close
-    ? parseFloat(data.meta.previous_close)
-    : series[0].price;
-
-  const change = latest - prevClose;
-  const changePercent = prevClose !== 0 ? (change / prevClose) * 100 : 0;
-
-  return { price: latest, change, changePercent, series, candles };
+  return {
+    price: data.price,
+    change: data.change,
+    changePercent: data.changePercent,
+    series: data.series ?? [],
+    candles: data.candles,
+  };
 }
