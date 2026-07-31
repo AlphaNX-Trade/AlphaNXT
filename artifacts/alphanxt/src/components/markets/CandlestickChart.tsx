@@ -155,7 +155,7 @@ export function CandlestickChart({
         {!loading && (error || candles.length === 0) && (
           <div className="h-[280px] flex flex-col items-center justify-center gap-1.5 px-4 text-center">
             <p className="text-xs text-muted-foreground">
-              {error ?? 'Live chart unavailable for this timeframe.'}
+              Live chart isn't available right now for this timeframe.
             </p>
           </div>
         )}
