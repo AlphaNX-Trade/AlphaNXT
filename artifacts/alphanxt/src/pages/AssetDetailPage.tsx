@@ -260,7 +260,7 @@ export default function AssetDetailPage({ symbol }: AssetDetailPageProps) {
             {candles.length === 0 ? (
               <div className="bg-card border border-border rounded-xl p-5 text-center">
                 <p className="text-xs text-muted-foreground">
-                  {isLive ? 'Not enough data yet to analyze.' : 'Connect live market data to enable AI Analysis.'}
+                  Live market data isn't available right now, so technical analysis (which needs real price history) can't run on placeholder data.
                 </p>
               </div>
             ) : (
