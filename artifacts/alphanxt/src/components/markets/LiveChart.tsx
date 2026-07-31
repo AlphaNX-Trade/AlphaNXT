@@ -40,7 +40,7 @@ export function LiveChart({ series, isLive, loading, error, isPositive }: LiveCh
     return (
       <div className="h-48 bg-card border border-border rounded-xl flex flex-col items-center justify-center gap-1.5 px-4 text-center">
         <p className="text-xs text-muted-foreground">
-          {error ?? 'Live chart unavailable — showing static data instead.'}
+          Live market data isn't available right now — showing static prices instead.
         </p>
       </div>
     );
