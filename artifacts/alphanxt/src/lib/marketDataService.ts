@@ -100,19 +100,32 @@ function buildYahooUrl(yahooSymbol: string, interval: string, range: string): st
 
 async function fetchAndParse(url: string): Promise<YahooChartResponse> {
   console.log('[marketDataService] Requesting:', url);
-  const res = await fetch(url);
+
+  let res: Response;
+  try {
+    res = await fetch(url);
+  } catch (networkErr) {
+    // A bare "Failed to fetch" almost always means the browser blocked the
+    // request before any response came back — typically a CORS rejection,
+    // sometimes a genuine network/DNS failure. Either way, surface which URL
+    // failed so it's clear which attempt (direct vs. proxy) hit the wall.
+    throw new Error(
+      `Request blocked before receiving a response (likely CORS or network failure) for: ${url}. Original error: ${networkErr instanceof Error ? networkErr.message : String(networkErr)}`,
+    );
+  }
+
   const rawBody = await res.text();
   console.log('[marketDataService] Response status:', res.status, '— body preview:', rawBody.slice(0, 300));
 
   if (!res.ok) {
-    throw new Error(`Yahoo Finance request failed (HTTP ${res.status}): ${rawBody.slice(0, 200)}`);
+    throw new Error(`Request failed (HTTP ${res.status}) for: ${url}. Body: ${rawBody.slice(0, 200)}`);
   }
 
   let data: YahooChartResponse;
   try {
     data = JSON.parse(rawBody);
   } catch {
-    throw new Error(`Yahoo Finance returned a non-JSON response: ${rawBody.slice(0, 200)}`);
+    throw new Error(`Non-JSON response for: ${url}. Body: ${rawBody.slice(0, 200)}`);
   }
 
   if (data.chart?.error) {
@@ -120,6 +133,43 @@ async function fetchAndParse(url: string): Promise<YahooChartResponse> {
   }
 
   return data;
+}
+
+/**
+ * Free public CORS proxies, tried in order. All are third-party services
+ * with no uptime guarantee — this list exists purely because there's no
+ * budget for a real backend right now. If all of these ever go down
+ * simultaneously, live data will fail until a paid backend becomes viable.
+ */
+const CORS_PROXIES = [
+  (target: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`,
+  (target: string) => `https://corsproxy.io/?url=${encodeURIComponent(target)}`,
+];
+
+async function fetchWithFallbacks(directUrl: string): Promise<YahooChartResponse> {
+  try {
+    return await fetchAndParse(directUrl);
+  } catch (directErr) {
+    console.warn(
+      '[marketDataService] Direct request failed:',
+      directErr instanceof Error ? directErr.message : directErr,
+    );
+  }
+
+  for (const [i, buildProxyUrl] of CORS_PROXIES.entries()) {
+    try {
+      return await fetchAndParse(buildProxyUrl(directUrl));
+    } catch (proxyErr) {
+      console.warn(
+        `[marketDataService] Proxy ${i + 1}/${CORS_PROXIES.length} failed:`,
+        proxyErr instanceof Error ? proxyErr.message : proxyErr,
+      );
+    }
+  }
+
+  throw new Error(
+    'Live data unavailable: the direct request and all CORS proxy fallbacks failed. This can happen if Yahoo Finance is blocking requests from this network, or the free proxy services are temporarily down.',
+  );
 }
 
 export async function fetchLiveQuote(
@@ -135,22 +185,7 @@ export async function fetchLiveQuote(
   const { interval: yInterval, range } = TIMEFRAME_TO_YAHOO[interval];
   const directUrl = buildYahooUrl(yahooSymbol, yInterval, range);
 
-  let data: YahooChartResponse;
-  try {
-    data = await fetchAndParse(directUrl);
-  } catch (directErr) {
-    console.warn(
-      '[marketDataService] Direct Yahoo Finance request failed, retrying via CORS proxy. Reason:',
-      directErr instanceof Error ? directErr.message : directErr,
-    );
-    try {
-      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}`;
-      data = await fetchAndParse(proxyUrl);
-    } catch (proxyErr) {
-      console.error('[marketDataService] CORS proxy fallback also failed for', internalSymbol);
-      throw proxyErr;
-    }
-  }
+  const data = await fetchWithFallbacks(directUrl);
 
   const result = data.chart?.result?.[0];
   if (!result || !result.timestamp || !result.indicators?.quote?.[0]) {
