@@ -13,6 +13,12 @@ import AssetDetailPage from '@/pages/AssetDetailPage';
 import TradePage from '@/pages/TradePage';
 import PortfolioPage from '@/pages/PortfolioPage';
 import ProfilePage from '@/pages/ProfilePage';
+import AchievementsPage from '@/pages/AchievementsPage';
+import ChallengesPage from '@/pages/ChallengesPage';
+import EditProfilePage from '@/pages/EditProfilePage';
+import SettingsPage from '@/pages/SettingsPage';
+import NotificationsPage from '@/pages/NotificationsPage';
+import HelpPage from '@/pages/HelpPage';
 import LearnPage from '@/pages/LearnPage';
 import TopicLessonPage from '@/pages/TopicLessonPage';
 import QuizPage from '@/pages/QuizPage';
@@ -173,6 +179,90 @@ function ProtectedLearnPage() {
   return <LearnPage />;
 }
 
+function ProtectedAchievementsPage() {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user) return <LoadingScreen />;
+  return <AchievementsPage />;
+}
+
+function ProtectedChallengesPage() {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user) return <LoadingScreen />;
+  return <ChallengesPage />;
+}
+
+function ProtectedEditProfilePage() {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user) return <LoadingScreen />;
+  return <EditProfilePage />;
+}
+
+function ProtectedSettingsPage() {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user) return <LoadingScreen />;
+  return <SettingsPage />;
+}
+
+function ProtectedNotificationsPage() {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user) return <LoadingScreen />;
+  return <NotificationsPage />;
+}
+
+function ProtectedHelpPage() {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user) return <LoadingScreen />;
+  return <HelpPage />;
+}
+
 function ProtectedTopicLessonPage({ params }: { params: { topicId: string } }) {
   const { user, loading } = useAuth();
   const [, setLocation] = useLocation();
@@ -216,6 +306,12 @@ function Router() {
       <Route path="/portfolio" component={ProtectedPortfolioPage} />
       <Route path="/profile" component={ProtectedProfilePage} />
       <Route path="/learn" component={ProtectedLearnPage} />
+      <Route path="/achievements" component={ProtectedAchievementsPage} />
+      <Route path="/challenges" component={ProtectedChallengesPage} />
+      <Route path="/edit-profile" component={ProtectedEditProfilePage} />
+      <Route path="/settings" component={ProtectedSettingsPage} />
+      <Route path="/notifications" component={ProtectedNotificationsPage} />
+      <Route path="/help" component={ProtectedHelpPage} />
       <Route path="/learn/:topicId/quiz" component={ProtectedQuizPage} />
       <Route path="/learn/:topicId" component={ProtectedTopicLessonPage} />
       <Route component={NotFound} />
