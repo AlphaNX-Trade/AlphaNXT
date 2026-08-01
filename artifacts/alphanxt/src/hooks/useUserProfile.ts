@@ -131,6 +131,10 @@ export function useUserProfile(): UseUserProfileResult {
           riskScore: portfolioDoc.riskScore,
           winRate: portfolioDoc.winRate,
           updatedAt: portfolioDoc.updatedAt,
+          todayTradeCount: portfolioDoc.todayTradeCount,
+          todayTradeCountDate: portfolioDoc.todayTradeCountDate,
+          weekProfitLoss: portfolioDoc.weekProfitLoss,
+          weekProfitLossWeek: portfolioDoc.weekProfitLossWeek,
 
           // Legacy fields (kept for backward compatibility)
           watchlist: [],
