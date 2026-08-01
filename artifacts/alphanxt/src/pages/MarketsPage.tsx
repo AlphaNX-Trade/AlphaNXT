@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import { ChevronLeft } from 'lucide-react';
 import { STOCKS, INDICES, ALL_ASSETS } from '@/data/marketData';
@@ -9,31 +9,116 @@ import { SearchBar } from '@/components/markets/SearchBar';
 import { MarketSkeleton } from '@/components/markets/MarketSkeleton';
 import { BottomNav } from '@/components/dashboard/BottomNav';
 
-type Tab = 'all' | 'stocks' | 'indices';
+type TabId =
+  | 'all'
+  | 'watchlist'
+  | 'banking'
+  | 'it'
+  | 'auto'
+  | 'energy'
+  | 'infra'
+  | 'gainers'
+  | 'losers'
+  | 'active';
 
-const TAB_LABELS: { id: Tab; label: string }[] = [
+// Sector-based and computed tabs are built only from real data already in
+// marketData.ts. Tabs like "Pharma" or "Trending" from the original spec
+// are intentionally left out — there's no pharma stock or trending signal
+// in the current dataset, and an always-empty or fake tab would be worse
+// than not having it. Add them once real data backs them.
+const TABS: { id: TabId; label: string }[] = [
   { id: 'all', label: 'All' },
-  { id: 'stocks', label: 'Stocks' },
-  { id: 'indices', label: 'Indices' },
+  { id: 'watchlist', label: 'Watchlist' },
+  { id: 'banking', label: 'Banking' },
+  { id: 'it', label: 'IT' },
+  { id: 'auto', label: 'Auto' },
+  { id: 'energy', label: 'Energy' },
+  { id: 'infra', label: 'Infrastructure' },
+  { id: 'gainers', label: 'Top Gainers' },
+  { id: 'losers', label: 'Top Losers' },
+  { id: 'active', label: 'Most Active' },
 ];
 
-function filterAssets(assets: Asset[], query: string): Asset[] {
+const SECTOR_BY_TAB: Partial<Record<TabId, string>> = {
+  banking: 'Banking',
+  it: 'Information Technology',
+  auto: 'Automobile',
+  energy: 'Energy',
+  infra: 'Infrastructure',
+};
+
+/** Parses volume strings like "8.4M" or "1.2B" into a comparable number. */
+function parseVolume(volume: string): number {
+  const match = volume.match(/^([\d.]+)([MBK]?)$/i);
+  if (!match) return 0;
+  const num = parseFloat(match[1]);
+  const suffix = match[2].toUpperCase();
+  if (suffix === 'B') return num * 1_000_000_000;
+  if (suffix === 'M') return num * 1_000_000;
+  if (suffix === 'K') return num * 1_000;
+  return num;
+}
+
+function exchangeLabel(asset: Asset): string {
+  return asset.type === 'index' ? 'INDEX' : 'NSE';
+}
+
+function filterBySearch(assets: Asset[], query: string): Asset[] {
   if (!query.trim()) return assets;
   const q = query.toLowerCase();
   return assets.filter(
-    (a) => a.symbol.toLowerCase().includes(q) || a.name.toLowerCase().includes(q),
+    (a) =>
+      a.symbol.toLowerCase().includes(q) ||
+      a.name.toLowerCase().includes(q) ||
+      a.sector.toLowerCase().includes(q) ||
+      exchangeLabel(a).toLowerCase().includes(q),
   );
 }
 
 export default function MarketsPage() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<Tab>('all');
+  const [activeTab, setActiveTab] = useState<TabId>('all');
   const { watchlistLoading, addStock, removeStock, isInWatchlist } = useWatchlist();
 
-  const baseList = activeTab === 'all' ? ALL_ASSETS : activeTab === 'stocks' ? STOCKS : INDICES;
   const isSearching = search.trim().length > 0;
-  const filtered = filterAssets(baseList, search);
+
+  const tabFiltered = useMemo(() => {
+    switch (activeTab) {
+      case 'all':
+        return ALL_ASSETS;
+      case 'watchlist':
+        return ALL_ASSETS.filter((a) => isInWatchlist(a.symbol));
+      case 'gainers':
+        return [...STOCKS].sort((a, b) => b.changePercent - a.changePercent);
+      case 'losers':
+        return [...STOCKS].sort((a, b) => a.changePercent - b.changePercent);
+      case 'active':
+        return [...STOCKS].sort((a, b) => parseVolume(b.volume) - parseVolume(a.volume));
+      default: {
+        const sector = SECTOR_BY_TAB[activeTab];
+        return sector ? STOCKS.filter((a) => a.sector === sector) : ALL_ASSETS;
+      }
+    }
+    // isInWatchlist reference changes on every hook render, but its
+    // underlying data only changes when the watchlist itself changes —
+    // recomputing per keystroke elsewhere is fine for a list this small.
+  }, [activeTab, isInWatchlist]);
+
+  const filtered = filterBySearch(tabFiltered, search);
+  const showGrouped = activeTab === 'all' && !isSearching;
+
+  const renderCard = (asset: Asset) => (
+    <AssetCard
+      key={asset.symbol}
+      asset={asset}
+      onPress={() => setLocation(`/markets/${asset.symbol}`)}
+      isInWatchlist={isInWatchlist(asset.symbol)}
+      onWatchlistToggle={() =>
+        isInWatchlist(asset.symbol) ? removeStock(asset.symbol) : addStock(asset.symbol)
+      }
+    />
+  );
 
   return (
     <div className="min-h-[100dvh] bg-background flex flex-col max-w-[480px] mx-auto pb-16">
@@ -54,13 +139,13 @@ export default function MarketsPage() {
       <main className="flex-1 overflow-y-auto px-4 pt-[72px] pb-4 space-y-4">
         <SearchBar value={search} onChange={setSearch} />
 
-        {/* Tab bar */}
-        <div className="flex gap-2">
-          {TAB_LABELS.map((tab) => (
+        {/* Tab bar — horizontally scrollable, more categories than fit on screen */}
+        <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
+          {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`font-mono text-xs px-4 py-1.5 rounded-full transition-colors ${
+              className={`shrink-0 font-mono text-xs px-4 py-1.5 rounded-full transition-colors ${
                 activeTab === tab.id
                   ? 'bg-primary text-background font-semibold'
                   : 'bg-secondary text-muted-foreground hover:text-foreground'
@@ -75,68 +160,34 @@ export default function MarketsPage() {
         {watchlistLoading ? (
           <MarketSkeleton count={5} />
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center pt-16 gap-2 text-muted-foreground">
-            <p className="text-sm">No results for</p>
-            <p className="font-mono text-xs text-primary">"{search}"</p>
+          <div className="flex flex-col items-center justify-center pt-16 gap-2 text-muted-foreground text-center px-6">
+            {isSearching ? (
+              <>
+                <p className="text-sm">No results for</p>
+                <p className="font-mono text-xs text-primary">"{search}"</p>
+              </>
+            ) : activeTab === 'watchlist' ? (
+              <p className="text-sm">Your watchlist is empty — add stocks from their detail page.</p>
+            ) : (
+              <p className="text-sm">No assets in this category yet.</p>
+            )}
           </div>
-        ) : activeTab === 'all' && !isSearching ? (
+        ) : showGrouped ? (
           /* Grouped view with section headers */
           <>
             <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground pt-1">
               Stocks
             </p>
-            <div className="space-y-2">
-              {STOCKS.map((asset) => (
-                <AssetCard
-                  key={asset.symbol}
-                  asset={asset}
-                  onPress={() => setLocation(`/markets/${asset.symbol}`)}
-                  isInWatchlist={isInWatchlist(asset.symbol)}
-                  onWatchlistToggle={() =>
-                    isInWatchlist(asset.symbol)
-                      ? removeStock(asset.symbol)
-                      : addStock(asset.symbol)
-                  }
-                />
-              ))}
-            </div>
+            <div className="space-y-2">{STOCKS.map(renderCard)}</div>
 
             <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground pt-1">
               Indices
             </p>
-            <div className="space-y-2">
-              {INDICES.map((asset) => (
-                <AssetCard
-                  key={asset.symbol}
-                  asset={asset}
-                  onPress={() => setLocation(`/markets/${asset.symbol}`)}
-                  isInWatchlist={isInWatchlist(asset.symbol)}
-                  onWatchlistToggle={() =>
-                    isInWatchlist(asset.symbol)
-                      ? removeStock(asset.symbol)
-                      : addStock(asset.symbol)
-                  }
-                />
-              ))}
-            </div>
+            <div className="space-y-2">{INDICES.map(renderCard)}</div>
           </>
         ) : (
-          /* Flat list (filtered or single-tab) */
-          <div className="space-y-2">
-            {filtered.map((asset) => (
-              <AssetCard
-                key={asset.symbol}
-                asset={asset}
-                onPress={() => setLocation(`/markets/${asset.symbol}`)}
-                isInWatchlist={isInWatchlist(asset.symbol)}
-                onWatchlistToggle={() =>
-                  isInWatchlist(asset.symbol)
-                    ? removeStock(asset.symbol)
-                    : addStock(asset.symbol)
-                }
-              />
-            ))}
-          </div>
+          /* Flat list (filtered, category tab, or search) */
+          <div className="space-y-2">{filtered.map(renderCard)}</div>
         )}
       </main>
 
