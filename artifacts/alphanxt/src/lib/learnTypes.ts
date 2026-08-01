@@ -30,6 +30,11 @@ export interface CourseProgressDoc {
   completedTopics: string[];
   /** topicId -> best score achieved (0-100) */
   quizScores: Record<string, number>;
+  /** How many topics were newly completed today/this week — powers daily/weekly challenges. */
+  todayTopicsCount?: number;
+  todayTopicsCountDate?: string;
+  weekTopicsCount?: number;
+  weekTopicsCountWeek?: string;
   updatedAt: Timestamp | ReturnType<typeof import('firebase/firestore').serverTimestamp>;
 }
 
