@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useLocation, Link } from 'wouter';
 import { motion } from 'framer-motion';
-import { createUserWithEmailAndPassword, updateProfile, AuthError } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification, AuthError } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { initializeUserDocument, verifyUserDocument } from '@/lib/userService';
 import { BrandLogo } from '@/components/ui/Brand';
@@ -38,6 +38,11 @@ export default function RegisterPage() {
       // Step 1: Create Firebase Auth user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(userCredential.user, { displayName: name });
+
+      // Best-effort — a failed verification email shouldn't block account creation.
+      sendEmailVerification(userCredential.user).catch((err) => {
+        console.warn('Failed to send verification email:', err);
+      });
 
       // Step 2: Initialize Firestore document (no-op if it already exists)
       setLoadingStep('Setting up your profile…');
