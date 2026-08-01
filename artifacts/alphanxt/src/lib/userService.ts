@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 // ─── Collection shapes ────────────────────────────────────────────────────────
@@ -22,6 +22,10 @@ export interface PortfolioDoc {
   riskScore: number;
   winRate: number;
   updatedAt: ReturnType<typeof serverTimestamp>;
+  todayTradeCount?: number;
+  todayTradeCountDate?: string;
+  weekProfitLoss?: number;
+  weekProfitLossWeek?: string;
 }
 
 /** watchlist/{uid} */
@@ -142,4 +146,13 @@ export async function initializeWatchlistDocument(uid: string): Promise<void> {
 export async function verifyUserDocument(uid: string): Promise<boolean> {
   const snap = await getDoc(doc(db, 'users', uid));
   return snap.exists();
+}
+
+/** Updates the display name shown across the app (Profile, AI Coach cards, leaderboard). */
+export async function updateUserFullName(uid: string, fullName: string): Promise<void> {
+  const trimmed = fullName.trim();
+  if (!trimmed) {
+    throw new Error('Name cannot be empty.');
+  }
+  await updateDoc(doc(db, 'users', uid), { fullName: trimmed });
 }
