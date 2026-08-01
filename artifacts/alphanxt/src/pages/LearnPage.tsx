@@ -1,6 +1,6 @@
 import { useLocation } from 'wouter';
 import { motion } from 'framer-motion';
-import { ChevronLeft, Award } from 'lucide-react';
+import { ChevronLeft, Award, Target } from 'lucide-react';
 import { LEARNING_TOPICS, getTopicsByLevel } from '@/data/learnContent';
 import type { LearningLevel } from '@/lib/learnTypes';
 import { useLearnProgress } from '@/hooks/useLearnProgress';
@@ -47,6 +47,17 @@ export default function LearnPage() {
 
       <main className="flex-1 overflow-y-auto px-4 pt-[72px] pb-4 space-y-6">
         {/* Progress overview */}
+        <button
+          onClick={() => setLocation('/challenges')}
+          className="w-full flex items-center justify-between bg-card border border-border rounded-xl px-4 py-3 hover:border-primary/30 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Target className="w-4 h-4 text-primary" />
+            <span className="text-sm font-medium text-foreground">Challenges & Leaderboard</span>
+          </div>
+          <span className="font-mono text-[10px] text-muted-foreground">View →</span>
+        </button>
+
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
