@@ -9,6 +9,10 @@ interface UseLearnProgressResult {
   completedTopics: string[];
   quizScores: Record<string, number>;
   earnedBadgeIds: string[];
+  todayTopicsCount?: number;
+  todayTopicsCountDate?: string;
+  weekTopicsCount?: number;
+  weekTopicsCountWeek?: string;
   progressLoading: boolean;
 }
 
@@ -18,6 +22,12 @@ export function useLearnProgress(): UseLearnProgressResult {
   const [completedTopics, setCompletedTopics] = useState<string[]>([]);
   const [quizScores, setQuizScores] = useState<Record<string, number>>({});
   const [earnedBadgeIds, setEarnedBadgeIds] = useState<string[]>([]);
+  const [courseCounters, setCourseCounters] = useState<{
+    todayTopicsCount?: number;
+    todayTopicsCountDate?: string;
+    weekTopicsCount?: number;
+    weekTopicsCountWeek?: string;
+  }>({});
   const [courseLoading, setCourseLoading] = useState(true);
   const [badgesLoading, setBadgesLoading] = useState(true);
 
@@ -25,6 +35,7 @@ export function useLearnProgress(): UseLearnProgressResult {
     if (!user) {
       setCompletedTopics([]);
       setQuizScores({});
+      setCourseCounters({});
       setCourseLoading(false);
       return;
     }
@@ -38,6 +49,12 @@ export function useLearnProgress(): UseLearnProgressResult {
         const data = snap.data() as CourseProgressDoc;
         setCompletedTopics(data.completedTopics ?? []);
         setQuizScores(data.quizScores ?? {});
+        setCourseCounters({
+          todayTopicsCount: data.todayTopicsCount,
+          todayTopicsCountDate: data.todayTopicsCountDate,
+          weekTopicsCount: data.weekTopicsCount,
+          weekTopicsCountWeek: data.weekTopicsCountWeek,
+        });
       }
       setCourseLoading(false);
     });
@@ -71,6 +88,7 @@ export function useLearnProgress(): UseLearnProgressResult {
     completedTopics,
     quizScores,
     earnedBadgeIds,
+    ...courseCounters,
     progressLoading: courseLoading || badgesLoading,
   };
 }
