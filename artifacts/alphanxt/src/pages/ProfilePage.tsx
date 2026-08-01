@@ -10,6 +10,8 @@ import {
   HelpCircle,
   LogOut,
   Loader2,
+  Trophy,
+  Target,
 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -31,14 +33,6 @@ function getInitials(fullName: string | undefined): string {
   const parts = fullName.trim().split(/\s+/);
   const initials = parts.slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '');
   return initials.join('') || '?';
-}
-
-/** Menu items that don't have a dedicated screen yet — real interaction, honest state. */
-function notifyComingSoon(feature: string) {
-  toast({
-    title: `${feature} — coming soon`,
-    description: 'This section is part of an upcoming phase.',
-  });
 }
 
 export default function ProfilePage() {
@@ -135,27 +129,43 @@ export default function ProfilePage() {
         {/* Menu */}
         <div className="space-y-2">
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground px-1">
+            Progress
+          </p>
+          <ProfileMenuItem
+            icon={Trophy}
+            label="Achievements"
+            onClick={() => setLocation('/achievements')}
+          />
+          <ProfileMenuItem
+            icon={Target}
+            label="Challenges & Leaderboard"
+            onClick={() => setLocation('/challenges')}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground px-1">
             Account
           </p>
           <ProfileMenuItem
             icon={UserRound}
             label="Edit Profile"
-            onClick={() => notifyComingSoon('Edit Profile')}
+            onClick={() => setLocation('/edit-profile')}
           />
           <ProfileMenuItem
             icon={Settings}
             label="Settings"
-            onClick={() => notifyComingSoon('Settings')}
+            onClick={() => setLocation('/settings')}
           />
           <ProfileMenuItem
             icon={Bell}
             label="Notifications"
-            onClick={() => notifyComingSoon('Notifications')}
+            onClick={() => setLocation('/notifications')}
           />
           <ProfileMenuItem
             icon={HelpCircle}
             label="Help"
-            onClick={() => notifyComingSoon('Help')}
+            onClick={() => setLocation('/help')}
           />
         </div>
 
