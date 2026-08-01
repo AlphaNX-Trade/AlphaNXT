@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import SplashPage from '@/pages/SplashPage';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
+import ForgotPasswordPage from '@/pages/ForgotPasswordPage';
 import DashboardPage from '@/pages/DashboardPage';
 import MarketsPage from '@/pages/MarketsPage';
 import AssetDetailPage from '@/pages/AssetDetailPage';
@@ -298,6 +299,7 @@ function Router() {
       <Route path="/splash" component={SplashPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
+      <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/dashboard" component={ProtectedDashboard} />
       <Route path="/markets" component={ProtectedMarketsPage} />
       <Route path="/markets/:symbol" component={ProtectedAssetDetailPage} />
