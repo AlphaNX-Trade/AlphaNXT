@@ -9,6 +9,8 @@ import { db } from '@/lib/firebase';
 import type { CourseProgressDoc, UserBadgesDoc, BadgeDefinition } from '@/lib/learnTypes';
 import { resolveLevelFromXp } from '@/lib/learnTypes';
 import { LEARNING_TOPICS, getTopicById } from '@/data/learnContent';
+import { todayDateString, currentWeekString } from '@/lib/dateUtils';
+import { syncLeaderboardEntry } from '@/lib/leaderboardService';
 
 const PASS_THRESHOLD = 70; // % correct required to pass a quiz and earn XP
 
@@ -131,9 +133,33 @@ export async function submitQuizAttempt(
       [topicId]: Math.max(previousBest, scorePercent),
     };
 
+    const justCompleted = passed && !wasAlreadyCompleted;
+    const today = todayDateString();
+    const thisWeek = currentWeekString();
+
+    const currentTodayCount = courseData.todayTopicsCount ?? 0;
+    const currentTodayCountDate = courseData.todayTopicsCountDate;
+    const newTodayCount = justCompleted
+      ? (currentTodayCountDate === today ? currentTodayCount + 1 : 1)
+      : currentTodayCount;
+
+    const currentWeekCount = courseData.weekTopicsCount ?? 0;
+    const currentWeekCountWeek = courseData.weekTopicsCountWeek;
+    const newWeekCount = justCompleted
+      ? (currentWeekCountWeek === thisWeek ? currentWeekCount + 1 : 1)
+      : currentWeekCount;
+
     tx.set(
       courseRef,
-      { completedTopics: updatedCompleted, quizScores: updatedScores, updatedAt: serverTimestamp() },
+      {
+        completedTopics: updatedCompleted,
+        quizScores: updatedScores,
+        todayTopicsCount: newTodayCount,
+        todayTopicsCountDate: justCompleted ? today : currentTodayCountDate ?? today,
+        weekTopicsCount: newWeekCount,
+        weekTopicsCountWeek: justCompleted ? thisWeek : currentWeekCountWeek ?? thisWeek,
+        updatedAt: serverTimestamp(),
+      },
       { merge: true },
     );
 
@@ -170,6 +196,13 @@ export async function submitQuizAttempt(
       );
     }
   });
+
+  if (xpAwarded > 0) {
+    // Best-effort — leaderboard is supplementary, never blocks quiz results.
+    syncLeaderboardEntry(uid).catch((err) => {
+      console.warn('[learnService] Leaderboard sync failed:', err);
+    });
+  }
 
   return { passed, scorePercent, xpAwarded, newlyEarnedBadges };
 }
