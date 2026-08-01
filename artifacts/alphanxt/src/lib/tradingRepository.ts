@@ -8,6 +8,8 @@ import {
 import { db } from '@/lib/firebase';
 import { TradeError } from '@/lib/tradingTypes';
 import type { HoldingDoc, TradeSide, TradeResult } from '@/lib/tradingTypes';
+import { todayDateString, currentWeekString } from '@/lib/dateUtils';
+import { syncLeaderboardEntry } from '@/lib/leaderboardService';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -17,11 +19,6 @@ function toTradeResult(err: unknown): TradeResult {
   }
   const msg = err instanceof Error ? err.message : 'An unexpected error occurred.';
   return { success: false, error: { field: 'general', message: msg } };
-}
-
-/** UTC calendar date string (YYYY-MM-DD) — used to reset todayProfitLoss daily. */
-function todayDateString(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 /**
@@ -136,11 +133,18 @@ export async function executeBuy(
       const newTotalInvested = currentTotalInvested + totalCost;
       const newVirtualBalance = virtualBalance - totalCost;
 
+      const today = todayDateString();
+      const currentTodayTradeCount = (portfolioSnap.data().todayTradeCount as number) ?? 0;
+      const currentTodayTradeCountDate = portfolioSnap.data().todayTradeCountDate as string | undefined;
+      const newTodayTradeCount = currentTodayTradeCountDate === today ? currentTodayTradeCount + 1 : 1;
+
       tx.update(portfolioRef, {
         virtualBalance: newVirtualBalance,
         totalInvested: newTotalInvested,
         portfolioValue: newVirtualBalance + newTotalInvested,
         riskScore: blendRiskScore(currentRiskScore, positionSizePercent, plannedStopLoss !== undefined),
+        todayTradeCount: newTodayTradeCount,
+        todayTradeCountDate: today,
         updatedAt: serverTimestamp(),
       });
     });
@@ -211,6 +215,10 @@ export async function executeSell(
       const currentWinningTrades = (portfolioSnap.data().winningTrades as number) ?? 0;
       const currentTodayPL = (portfolioSnap.data().todayProfitLoss as number) ?? 0;
       const currentTodayDate = portfolioSnap.data().todayProfitLossDate as string | undefined;
+      const currentWeekPL = (portfolioSnap.data().weekProfitLoss as number) ?? 0;
+      const currentWeekPLWeek = portfolioSnap.data().weekProfitLossWeek as string | undefined;
+      const currentTodayTradeCount = (portfolioSnap.data().todayTradeCount as number) ?? 0;
+      const currentTodayTradeCountDate = portfolioSnap.data().todayTradeCountDate as string | undefined;
       const realizedPL = (price - h.avgBuyPrice) * quantity;
 
       const firstBuyMs = h.firstBuyAt?.toMillis?.() ?? Date.now();
@@ -242,6 +250,11 @@ export async function executeSell(
       const today = todayDateString();
       const newTodayPL = currentTodayDate === today ? currentTodayPL + realizedPL : realizedPL;
 
+      const thisWeek = currentWeekString();
+      const newWeekPL = currentWeekPLWeek === thisWeek ? currentWeekPL + realizedPL : realizedPL;
+
+      const newTodayTradeCount = currentTodayTradeCountDate === today ? currentTodayTradeCount + 1 : 1;
+
       tx.update(portfolioRef, {
         virtualBalance: newVirtualBalance,
         totalProfitLoss: currentTotalPL + realizedPL,
@@ -252,8 +265,18 @@ export async function executeSell(
         winRate: newTotalTrades > 0 ? (newWinningTrades / newTotalTrades) * 100 : 0,
         todayProfitLoss: newTodayPL,
         todayProfitLossDate: today,
+        weekProfitLoss: newWeekPL,
+        weekProfitLossWeek: thisWeek,
+        todayTradeCount: newTodayTradeCount,
+        todayTradeCountDate: today,
         updatedAt: serverTimestamp(),
       });
+    });
+
+    // Best-effort — the leaderboard is a supplementary feature, so a sync
+    // failure here should never block the trade itself from succeeding.
+    syncLeaderboardEntry(uid).catch((err) => {
+      console.warn('[tradingRepository] Leaderboard sync failed:', err);
     });
 
     await writeTransaction(uid, symbol, companyName, 'SELL', quantity, price, totalAmount, {
