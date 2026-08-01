@@ -9,6 +9,8 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  ChevronDown,
+  Shield,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAssetBySymbol } from '@/data/marketData';
@@ -19,6 +21,9 @@ import { useLiveAsset } from '@/hooks/useLiveAsset';
 import { LiveChart } from '@/components/markets/LiveChart';
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { OrderTypePicker } from '@/components/trade/OrderTypePicker';
+import { AICoachCard } from '@/components/trade/AICoachCard';
+import { analyzeTrade } from '@/lib/aiCoachService';
+import type { TradeAnalysis } from '@/lib/aiCoachTypes';
 import type { TradeSide } from '@/lib/tradingTypes';
 
 interface TradePageProps {
@@ -72,6 +77,10 @@ export default function TradePage({ symbol }: TradePageProps) {
   const [side, setSide] = useState<TradeSide>('BUY');
   const [qtyStr, setQtyStr] = useState('1');
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showRiskPlan, setShowRiskPlan] = useState(false);
+  const [stopLossStr, setStopLossStr] = useState('');
+  const [takeProfitStr, setTakeProfitStr] = useState('');
+  const [tradeAnalysis, setTradeAnalysis] = useState<TradeAnalysis | null>(null);
 
   const { profile } = useUserProfile();
   const { holding, holdingLoading } = useHolding(symbol ?? '');
@@ -113,10 +122,41 @@ export default function TradePage({ symbol }: TradePageProps) {
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
-    const result = await executeTrade(side, asset.symbol, asset.name, qty, effectivePrice);
+
+    const plannedStopLoss = side === 'BUY' && stopLossStr ? parseFloat(stopLossStr) : undefined;
+    const plannedTakeProfit = side === 'BUY' && takeProfitStr ? parseFloat(takeProfitStr) : undefined;
+
+    const result = await executeTrade(
+      side,
+      asset.symbol,
+      asset.name,
+      qty,
+      effectivePrice,
+      plannedStopLoss,
+      plannedTakeProfit,
+    );
+
     if (result.success) {
       setShowSuccess(true);
       setQtyStr('1');
+      setStopLossStr('');
+      setTakeProfitStr('');
+      setShowRiskPlan(false);
+
+      if (side === 'SELL' && result.completedTrade) {
+        const analysis = analyzeTrade({
+          symbol: asset.symbol,
+          companyName: asset.name,
+          quantity: result.completedTrade.quantity,
+          entryPrice: result.completedTrade.entryPrice,
+          exitPrice: result.completedTrade.exitPrice,
+          plannedStopLoss: result.completedTrade.plannedStopLoss,
+          plannedTakeProfit: result.completedTrade.plannedTakeProfit,
+          holdingDurationMs: result.completedTrade.holdingDurationMs,
+        });
+        setTradeAnalysis(analysis);
+      }
+
       setTimeout(() => {
         setShowSuccess(false);
         reset();
@@ -159,6 +199,17 @@ export default function TradePage({ symbol }: TradePageProps) {
 
       {/* Scrollable content — everything except the sticky trade panel */}
       <main className="flex-1 overflow-y-auto px-4 pt-[72px] pb-[340px] space-y-4">
+        {/* AI Coach analysis — shown after a completed (SELL) trade */}
+        <AnimatePresence>
+          {tradeAnalysis && (
+            <AICoachCard
+              analysis={tradeAnalysis}
+              symbol={asset.symbol}
+              onDismiss={() => setTradeAnalysis(null)}
+            />
+          )}
+        </AnimatePresence>
+
         {/* Live chart */}
         <LiveChart
           series={series}
@@ -191,6 +242,61 @@ export default function TradePage({ symbol }: TradePageProps) {
             </span>
           </div>
         </div>
+
+        {/* Optional risk plan (BUY only) — informational, not an auto-executed order */}
+        {side === 'BUY' && (
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <button
+              onClick={() => setShowRiskPlan((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-3"
+            >
+              <div className="flex items-center gap-2">
+                <Shield className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                  Risk Plan (Optional)
+                </span>
+              </div>
+              <ChevronDown
+                className={`w-4 h-4 text-muted-foreground transition-transform ${showRiskPlan ? 'rotate-180' : ''}`}
+              />
+            </button>
+            {showRiskPlan && (
+              <div className="px-4 pb-4 space-y-3">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Set a target stop loss / take profit for your own reference. This isn't an
+                  auto-executed order — it's used by the AI Trading Coach to analyze this trade
+                  once you sell.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
+                      Stop Loss (₹)
+                    </label>
+                    <input
+                      type="number"
+                      value={stopLossStr}
+                      onChange={(e) => setStopLossStr(e.target.value)}
+                      placeholder={fmt(effectivePrice * 0.98)}
+                      className="w-full mt-1 bg-secondary/40 border border-border rounded-lg px-2.5 py-2 font-mono text-xs text-foreground focus:outline-none focus:border-red-500/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
+                      Take Profit (₹)
+                    </label>
+                    <input
+                      type="number"
+                      value={takeProfitStr}
+                      onChange={(e) => setTakeProfitStr(e.target.value)}
+                      placeholder={fmt(effectivePrice * 1.03)}
+                      className="w-full mt-1 bg-secondary/40 border border-border rounded-lg px-2.5 py-2 font-mono text-xs text-foreground focus:outline-none focus:border-emerald-500/40"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Holding details (SELL context) */}
         {side === 'SELL' && !holdingLoading && (
