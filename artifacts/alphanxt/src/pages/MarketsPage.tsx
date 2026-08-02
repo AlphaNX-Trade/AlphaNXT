@@ -15,6 +15,8 @@ type TabId =
   | 'banking'
   | 'it'
   | 'auto'
+  | 'pharma'
+  | 'fmcg'
   | 'energy'
   | 'infra'
   | 'gainers'
@@ -22,16 +24,18 @@ type TabId =
   | 'active';
 
 // Sector-based and computed tabs are built only from real data already in
-// marketData.ts. Tabs like "Pharma" or "Trending" from the original spec
-// are intentionally left out — there's no pharma stock or trending signal
-// in the current dataset, and an always-empty or fake tab would be worse
-// than not having it. Add them once real data backs them.
+// marketData.ts. "Trending" from the original spec is still intentionally
+// left out — there's no real trending signal (e.g. view/watchlist-add counts)
+// in the current dataset, and a fake "trending" tab would be worse than
+// no tab at all. Add them once real data backs them.
 const TABS: { id: TabId; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'watchlist', label: 'Watchlist' },
   { id: 'banking', label: 'Banking' },
   { id: 'it', label: 'IT' },
   { id: 'auto', label: 'Auto' },
+  { id: 'pharma', label: 'Pharma' },
+  { id: 'fmcg', label: 'FMCG' },
   { id: 'energy', label: 'Energy' },
   { id: 'infra', label: 'Infrastructure' },
   { id: 'gainers', label: 'Top Gainers' },
@@ -43,6 +47,8 @@ const SECTOR_BY_TAB: Partial<Record<TabId, string>> = {
   banking: 'Banking',
   it: 'Information Technology',
   auto: 'Automobile',
+  pharma: 'Pharma',
+  fmcg: 'FMCG',
   energy: 'Energy',
   infra: 'Infrastructure',
 };
