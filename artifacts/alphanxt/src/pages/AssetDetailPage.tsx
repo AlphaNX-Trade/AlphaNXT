@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
-import { ChevronLeft, Share2, Loader2, Sparkles, Newspaper, FileBarChart } from 'lucide-react';
+import { ChevronLeft, Share2, Loader2, Sparkles, Newspaper, FileBarChart, TrendingUp, TrendingDown } from 'lucide-react';
 import { getAssetBySymbol } from '@/data/marketData';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useLiveAsset } from '@/hooks/useLiveAsset';
@@ -167,7 +167,7 @@ export default function AssetDetailPage({ symbol }: AssetDetailPageProps) {
       </header>
 
       {/* Scrollable content */}
-      <main className="flex-1 overflow-y-auto px-4 pt-[104px] pb-8 space-y-5">
+      <main className="flex-1 overflow-y-auto px-4 pt-[104px] pb-24 space-y-5">
         {/* Price hero — shown above every tab */}
         <section className="pt-2">
           <p className="font-mono font-bold text-3xl text-foreground tracking-tight">
@@ -324,6 +324,24 @@ export default function AssetDetailPage({ symbol }: AssetDetailPageProps) {
           </div>
         )}
       </main>
+
+      {/* Sticky Up/Down CTA — was missing entirely after the tabs redesign */}
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-background/98 backdrop-blur border-t border-border px-4 py-3 z-30 shadow-[0_-8px_30px_rgba(0,0,0,0.3)]">
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setLocation(`/trade/${symbol}`)}
+            className="flex items-center justify-center gap-2 py-3.5 rounded-xl font-mono font-bold text-sm bg-emerald-500 text-white hover:bg-emerald-600 transition-colors"
+          >
+            <TrendingUp className="w-4 h-4" /> UP
+          </button>
+          <button
+            onClick={() => setLocation(`/trade/${symbol}`)}
+            className="flex items-center justify-center gap-2 py-3.5 rounded-xl font-mono font-bold text-sm bg-red-500 text-white hover:bg-red-600 transition-colors"
+          >
+            <TrendingDown className="w-4 h-4" /> DOWN
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
