@@ -217,6 +217,7 @@ export default function TradePage({ symbol }: TradePageProps) {
           loading={liveLoading}
           error={liveError}
           isPositive={isPositive}
+          referencePrice={effectivePrice}
         />
 
         {/* Order type */}
@@ -341,7 +342,7 @@ export default function TradePage({ symbol }: TradePageProps) {
 
       {/* ── Sticky Buy/Sell panel ─────────────────────────────────────── */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-background/98 backdrop-blur border-t border-border px-4 pt-3 pb-4 space-y-3 z-30 shadow-[0_-8px_30px_rgba(0,0,0,0.3)]">
-        {/* UP / DOWN toggle */}
+        {/* BUY / SELL toggle */}
         <div className="grid grid-cols-2 gap-3">
           {(['BUY', 'SELL'] as TradeSide[]).map((s) => {
             const isUp = s === 'BUY';
@@ -365,7 +366,7 @@ export default function TradePage({ symbol }: TradePageProps) {
                 }`}
               >
                 {isUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                {isUp ? 'UP' : 'DOWN'}
+                {isUp ? 'BUY' : 'SELL'}
               </button>
             );
           })}
@@ -449,7 +450,7 @@ export default function TradePage({ symbol }: TradePageProps) {
             >
               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
               <p className="text-[11px] font-mono">
-                {side === 'BUY' ? 'Up' : 'Down'} order placed successfully!
+                {side === 'BUY' ? 'Buy' : 'Sell'} order placed successfully!
               </p>
             </motion.div>
           )}
@@ -468,7 +469,7 @@ export default function TradePage({ symbol }: TradePageProps) {
           {isSubmitting ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
-            `Place ${side === 'BUY' ? 'Up' : 'Down'} Order`
+            `Place ${side === 'BUY' ? 'Buy' : 'Sell'} Order`
           )}
         </button>
       </div>
