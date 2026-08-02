@@ -1,5 +1,5 @@
 import { useLocation } from 'wouter';
-import { ChevronLeft, PieChart } from 'lucide-react';
+import { ChevronLeft, PieChart, History } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useHoldings } from '@/hooks/useHoldings';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -72,7 +72,13 @@ export default function PortfolioPage() {
           <ChevronLeft className="w-5 h-5" />
         </button>
         <span className="font-semibold text-base text-foreground">Portfolio</span>
-        <div className="w-6" />
+        <button
+          onClick={() => setLocation('/history')}
+          className="text-muted-foreground hover:text-foreground transition-colors p-1"
+          aria-label="Trade history"
+        >
+          <History className="w-5 h-5" />
+        </button>
       </header>
 
       {/* Scrollable content */}
