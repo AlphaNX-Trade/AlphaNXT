@@ -66,10 +66,20 @@ export function PortfolioCard() {
         </div>
         <div>
           <h3 className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider mb-1">Today's P/L</h3>
-          <div className={`text-lg font-mono font-semibold ${(profile?.todayProfitLoss ?? 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
-            {formatINRWithSign(profile?.todayProfitLoss ?? 0)}
-            <span className="text-xs ml-0.5 opacity-80">(+0.00%)</span>
-          </div>
+          {(() => {
+            const todayPL = profile?.todayProfitLoss ?? 0;
+            const baseValue = pValue - todayPL;
+            const todayPercent = baseValue !== 0 ? (todayPL / baseValue) * 100 : 0;
+            return (
+              <div className={`text-lg font-mono font-semibold ${todayPL >= 0 ? 'text-success' : 'text-destructive'}`}>
+                {formatINRWithSign(todayPL)}
+                <span className="text-xs ml-0.5 opacity-80">
+                  ({todayPercent >= 0 ? '+' : ''}
+                  {todayPercent.toFixed(2)}%)
+                </span>
+              </div>
+            );
+          })()}
         </div>
       </div>
       
