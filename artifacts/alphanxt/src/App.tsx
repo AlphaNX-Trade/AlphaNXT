@@ -23,7 +23,7 @@ import HelpPage from '@/pages/HelpPage';
 import LearnPage from '@/pages/LearnPage';
 import TopicLessonPage from '@/pages/TopicLessonPage';
 import QuizPage from '@/pages/QuizPage';
-import { BrandLogo } from '@/components/ui/Brand';
+import { CandlestickPatternBg } from '@/components/ui/CandlestickPatternBg';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 
@@ -60,38 +60,38 @@ function AuthGuard() {
   }, [user, loading, minTimeElapsed, setLocation]);
 
   return (
-    <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/10 via-background to-background pointer-events-none" />
-
+    <div className="min-h-screen w-full bg-white flex flex-col items-center justify-center relative overflow-hidden">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.8, ease: 'easeOut' }}
-        className="flex flex-col items-center z-10"
+        className="flex flex-col items-center z-10 px-10"
       >
-        <BrandLogo className="scale-150 mb-6" />
-        <motion.p
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5, duration: 0.5 }}
-          className="text-muted-foreground font-mono text-sm tracking-widest uppercase"
-        >
-          Master the Market Risk-Free
-        </motion.p>
+        <img src="/logo-full.png" alt="AlphaNXT" className="w-full max-w-[280px] object-contain" />
 
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1, duration: 0.5 }}
-          className="mt-12 w-48 h-1 bg-secondary rounded-full overflow-hidden relative"
+          className="mt-10 w-40 h-1 bg-slate-200 rounded-full overflow-hidden relative"
         >
           <motion.div
             initial={{ x: '-100%' }}
             animate={{ x: '100%' }}
             transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
-            className="absolute inset-y-0 left-0 w-1/2 bg-primary rounded-full shadow-[0_0_10px_rgba(41,98,255,0.5)]"
+            className="absolute inset-y-0 left-0 w-1/2 bg-primary rounded-full"
           />
         </motion.div>
+      </motion.div>
+
+      {/* Decorative candlestick pattern, anchored to the bottom like the reference design */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3, duration: 1 }}
+        className="absolute bottom-0 left-0 right-0 h-32 pointer-events-none"
+      >
+        <CandlestickPatternBg className="w-full h-full" />
       </motion.div>
     </div>
   );
