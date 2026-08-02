@@ -332,13 +332,13 @@ export default function AssetDetailPage({ symbol }: AssetDetailPageProps) {
             onClick={() => setLocation(`/trade/${symbol}`)}
             className="flex items-center justify-center gap-2 py-3.5 rounded-xl font-mono font-bold text-sm bg-emerald-500 text-white hover:bg-emerald-600 transition-colors"
           >
-            <TrendingUp className="w-4 h-4" /> UP
+            <TrendingUp className="w-4 h-4" /> BUY
           </button>
           <button
             onClick={() => setLocation(`/trade/${symbol}`)}
             className="flex items-center justify-center gap-2 py-3.5 rounded-xl font-mono font-bold text-sm bg-red-500 text-white hover:bg-red-600 transition-colors"
           >
-            <TrendingDown className="w-4 h-4" /> DOWN
+            <TrendingDown className="w-4 h-4" /> SELL
           </button>
         </div>
       </div>
