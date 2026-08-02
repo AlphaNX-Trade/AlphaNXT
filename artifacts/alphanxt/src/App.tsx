@@ -13,6 +13,7 @@ import MarketsPage from '@/pages/MarketsPage';
 import AssetDetailPage from '@/pages/AssetDetailPage';
 import TradePage from '@/pages/TradePage';
 import PortfolioPage from '@/pages/PortfolioPage';
+import TransactionHistoryPage from '@/pages/TransactionHistoryPage';
 import ProfilePage from '@/pages/ProfilePage';
 import AchievementsPage from '@/pages/AchievementsPage';
 import ChallengesPage from '@/pages/ChallengesPage';
@@ -181,6 +182,20 @@ function ProtectedPortfolioPage() {
   return <PortfolioPage />;
 }
 
+function ProtectedTransactionHistoryPage() {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setLocation('/login');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user) return <LoadingScreen />;
+  return <TransactionHistoryPage />;
+}
+
 function ProtectedProfilePage() {
   const { user, loading } = useAuth();
   const [, setLocation] = useLocation();
@@ -335,6 +350,7 @@ function Router() {
       <Route path="/trade" component={ProtectedTradePage} />
       <Route path="/trade/:symbol" component={ProtectedTradeSymbolPage} />
       <Route path="/portfolio" component={ProtectedPortfolioPage} />
+      <Route path="/history" component={ProtectedTransactionHistoryPage} />
       <Route path="/profile" component={ProtectedProfilePage} />
       <Route path="/learn" component={ProtectedLearnPage} />
       <Route path="/achievements" component={ProtectedAchievementsPage} />
