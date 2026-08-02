@@ -24,7 +24,7 @@ import LearnPage from '@/pages/LearnPage';
 import TopicLessonPage from '@/pages/TopicLessonPage';
 import QuizPage from '@/pages/QuizPage';
 import { BrandLogo } from '@/components/ui/Brand';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 
 const queryClient = new QueryClient();
@@ -40,30 +40,59 @@ function LoadingScreen() {
 function AuthGuard() {
   const { user, loading } = useAuth();
   const [, setLocation] = useLocation();
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+
+  // Show the splash for at least this long so it never just flashes by,
+  // even when auth resolves instantly from a cached session.
+  useEffect(() => {
+    const timer = setTimeout(() => setMinTimeElapsed(true), 1800);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
-    if (!loading) {
+    if (!loading && minTimeElapsed) {
       if (user) {
         setLocation('/dashboard');
       } else {
         setLocation('/login');
       }
     }
-  }, [user, loading, setLocation]);
+  }, [user, loading, minTimeElapsed, setLocation]);
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-background relative overflow-hidden">
-      <div className="flex flex-col items-center gap-4 z-10">
-        <BrandLogo />
-        <div className="w-32 h-1 bg-secondary rounded-full overflow-hidden relative mt-4">
+    <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/10 via-background to-background pointer-events-none" />
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.8, ease: 'easeOut' }}
+        className="flex flex-col items-center z-10"
+      >
+        <BrandLogo className="scale-150 mb-6" />
+        <motion.p
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.5 }}
+          className="text-muted-foreground font-mono text-sm tracking-widest uppercase"
+        >
+          Master the Market Risk-Free
+        </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1, duration: 0.5 }}
+          className="mt-12 w-48 h-1 bg-secondary rounded-full overflow-hidden relative"
+        >
           <motion.div
             initial={{ x: '-100%' }}
             animate={{ x: '100%' }}
-            transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-            className="absolute inset-y-0 w-1/2 bg-primary rounded-full"
+            transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
+            className="absolute inset-y-0 left-0 w-1/2 bg-primary rounded-full shadow-[0_0_10px_rgba(41,98,255,0.5)]"
           />
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </div>
   );
 }
