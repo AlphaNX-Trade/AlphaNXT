@@ -6,6 +6,7 @@ export interface SettingsDoc {
   pushNotificationsEnabled: boolean;
   emailNotificationsEnabled: boolean;
   soundEffectsEnabled: boolean;
+  theme: 'dark' | 'light';
   updatedAt: unknown;
 }
 
@@ -13,6 +14,7 @@ const DEFAULT_SETTINGS: Omit<SettingsDoc, 'updatedAt'> = {
   pushNotificationsEnabled: true,
   emailNotificationsEnabled: true,
   soundEffectsEnabled: true,
+  theme: 'dark',
 };
 
 export async function initializeSettings(uid: string): Promise<void> {
