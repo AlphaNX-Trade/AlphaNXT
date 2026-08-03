@@ -2,10 +2,13 @@ import { useLocation } from 'wouter';
 import { Star, ChevronRight } from 'lucide-react';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { getAssetBySymbol } from '@/data/marketData';
+import { useMarketEngineList } from '@/hooks/useMarketEngineList';
 
 export function Watchlist() {
   const [, setLocation] = useLocation();
   const { watchlist, watchlistLoading } = useWatchlist();
+  const engineSnapshots = useMarketEngineList();
+  const engineBySymbol = new Map(engineSnapshots.map((s) => [s.symbol, s]));
 
   const assets = watchlist.map((symbol) => getAssetBySymbol(symbol)).filter((a) => a !== undefined);
 
@@ -55,7 +58,11 @@ export function Watchlist() {
       </div>
       <div className="space-y-2">
         {assets.slice(0, 4).map((asset) => {
-          const isPositive = asset!.change >= 0;
+          const snap = engineBySymbol.get(asset!.symbol);
+          const price = snap?.price ?? asset!.price;
+          const change = snap ? snap.price - snap.prevClose : asset!.change;
+          const changePercent = snap && snap.prevClose !== 0 ? (change / snap.prevClose) * 100 : asset!.changePercent;
+          const isPositive = change >= 0;
           return (
             <button
               key={asset!.symbol}
@@ -68,11 +75,11 @@ export function Watchlist() {
               </div>
               <div className="text-right">
                 <p className="font-mono text-sm text-foreground">
-                  ₹{asset!.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ₹{price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
                 <p className={`font-mono text-[10px] ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
                   {isPositive ? '+' : ''}
-                  {asset!.changePercent.toFixed(2)}%
+                  {changePercent.toFixed(2)}%
                 </p>
               </div>
             </button>
