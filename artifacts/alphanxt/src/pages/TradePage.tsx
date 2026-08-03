@@ -17,8 +17,8 @@ import { getAssetBySymbol } from '@/data/marketData';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useHolding } from '@/hooks/useHolding';
 import { useTrade } from '@/hooks/useTrade';
-import { useLiveAsset } from '@/hooks/useLiveAsset';
-import { LiveChart } from '@/components/markets/LiveChart';
+import { useMarketEngineStock } from '@/hooks/useMarketEngineStock';
+import { EngineLiveChart } from '@/components/markets/EngineLiveChart';
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { OrderTypePicker } from '@/components/trade/OrderTypePicker';
 import { AICoachCard } from '@/components/trade/AICoachCard';
@@ -85,8 +85,7 @@ export default function TradePage({ symbol }: TradePageProps) {
   const { profile } = useUserProfile();
   const { holding, holdingLoading } = useHolding(symbol ?? '');
   const { executeTrade, isSubmitting, lastResult, reset } = useTrade();
-  const { livePrice, liveChange, liveChangePercent, series, isLive, liveLoading, liveError } =
-    useLiveAsset(symbol);
+  const { state: engineState, history } = useMarketEngineStock(symbol);
 
   const asset = symbol ? getAssetBySymbol(symbol) : undefined;
 
@@ -96,13 +95,16 @@ export default function TradePage({ symbol }: TradePageProps) {
   // Use live price when available; fall back to static placeholder data otherwise.
   // This is the price actually used for order calculation and validation, so
   // P/L reflects the real market when a live feed is connected.
-  const effectivePrice = livePrice ?? asset.price;
-  const effectiveChangePercent = liveChangePercent ?? asset.changePercent;
+  const effectivePrice = engineState?.price ?? asset.price;
+  const effectiveChangePercent =
+    engineState && engineState.prevClose !== 0
+      ? ((engineState.price - engineState.prevClose) / engineState.prevClose) * 100
+      : asset.changePercent;
 
   const qty = Math.max(0, parseInt(qtyStr, 10) || 0);
   const totalAmount = Math.round(qty * effectivePrice * 100) / 100;
   const virtualBalance = profile?.virtualBalance ?? 0;
-  const isPositive = (liveChange ?? asset.change) >= 0;
+  const isPositive = effectivePrice - (engineState?.prevClose ?? asset.prevClose) >= 0;
 
   // Client-side validation (preview only — server validates too)
   const validationError = (): string | null => {
@@ -210,15 +212,8 @@ export default function TradePage({ symbol }: TradePageProps) {
           )}
         </AnimatePresence>
 
-        {/* Live chart */}
-        <LiveChart
-          series={series}
-          isLive={isLive}
-          loading={liveLoading}
-          error={liveError}
-          isPositive={isPositive}
-          referencePrice={effectivePrice}
-        />
+        {/* Continuous simulated market chart */}
+        <EngineLiveChart history={history} isPositive={isPositive} />
 
         {/* Order type */}
         <OrderTypePicker />
@@ -229,11 +224,9 @@ export default function TradePage({ symbol }: TradePageProps) {
             <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
               Market Price
             </span>
-            {isLive && (
-              <span className="font-mono text-[9px] uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                Live
-              </span>
-            )}
+            <span className="font-mono text-[9px] uppercase tracking-widest text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+              Simulated
+            </span>
           </div>
           <div className="flex items-baseline gap-2">
             <span className="font-mono font-semibold text-foreground">{fmt(effectivePrice)}</span>
