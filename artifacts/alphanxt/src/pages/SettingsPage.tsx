@@ -1,11 +1,13 @@
 import { useLocation } from 'wouter';
-import { ChevronLeft, Volume2, Moon, Bell, HelpCircle, ChevronRight } from 'lucide-react';
+import { ChevronLeft, Volume2, Moon, Sun, Bell, HelpCircle, ChevronRight } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useSettings } from '@/hooks/useSettings';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function SettingsPage() {
   const [, setLocation] = useLocation();
   const { settings, settingsLoading, updateSetting } = useSettings();
+  const { theme, setTheme } = useTheme();
 
   return (
     <div className="min-h-[100dvh] bg-background flex flex-col max-w-[480px] mx-auto pb-6">
@@ -28,15 +30,34 @@ export default function SettingsPage() {
           </p>
           <div className="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3.5">
             <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <Moon className="w-4 h-4 text-primary" />
+              {theme === 'dark' ? (
+                <Moon className="w-4 h-4 text-primary" />
+              ) : (
+                <Sun className="w-4 h-4 text-primary" />
+              )}
             </div>
             <div className="flex-1">
-              <p className="text-sm font-medium text-foreground">Dark Theme</p>
-              <p className="text-[11px] text-muted-foreground">AlphaNXT is dark-theme only, by design</p>
+              <p className="text-sm font-medium text-foreground">Theme</p>
+              <p className="text-[11px] text-muted-foreground">Choose dark or light mode</p>
             </div>
-            <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Always On
-            </span>
+            <div className="flex bg-secondary/50 rounded-lg p-0.5 gap-0.5">
+              <button
+                onClick={() => setTheme('dark')}
+                className={`px-3 py-1.5 rounded-md font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                  theme === 'dark' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+                }`}
+              >
+                Dark
+              </button>
+              <button
+                onClick={() => setTheme('light')}
+                className={`px-3 py-1.5 rounded-md font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                  theme === 'light' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+                }`}
+              >
+                Light
+              </button>
+            </div>
           </div>
         </div>
 
