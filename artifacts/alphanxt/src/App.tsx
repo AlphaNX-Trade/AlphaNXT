@@ -4,6 +4,13 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { ensureMarketEngineRunning } from '@/lib/marketEngine/seedMarketEngine';
+
+// Starts the continuous market simulation the moment the app loads — runs
+// for the whole session regardless of which page is open, per spec ("runs
+// continuously 24/7 while the game is open").
+ensureMarketEngineRunning();
+
 import SplashPage from '@/pages/SplashPage';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
