@@ -3,7 +3,8 @@ import { useLocation } from 'wouter';
 import { ChevronLeft, Share2, Loader2, Sparkles, Newspaper, FileBarChart, TrendingUp, TrendingDown } from 'lucide-react';
 import { getAssetBySymbol } from '@/data/marketData';
 import { useWatchlist } from '@/hooks/useWatchlist';
-import { useLiveAsset } from '@/hooks/useLiveAsset';
+import { useMarketEngineStock } from '@/hooks/useMarketEngineStock';
+import { ticksToCandles } from '@/lib/marketEngine/candleAggregation';
 import type { ChartTimeframe } from '@/lib/marketDataService';
 import { CandlestickChart } from '@/components/markets/CandlestickChart';
 import { AssetTabs, type AssetTab } from '@/components/markets/AssetTabs';
@@ -63,15 +64,22 @@ export default function AssetDetailPage({ symbol }: AssetDetailPageProps) {
 
   const asset = getAssetBySymbol(symbol);
   const inWatchlist = isInWatchlist(symbol);
-  const {
-    livePrice,
-    liveChange,
-    liveChangePercent,
-    candles,
-    isLive,
-    liveLoading,
-    liveError,
-  } = useLiveAsset(symbol, timeframe);
+  const { state: engineState, history } = useMarketEngineStock(symbol);
+
+  // Bucket size for the candle view, tied to the selected timeframe tab.
+  const TIMEFRAME_TO_BUCKET_MS: Record<ChartTimeframe, number> = {
+    '1min': 1_000,
+    '5min': 5_000,
+    '15min': 15_000,
+    '1h': 60_000,
+    '1day': 60_000,
+    '1week': 60_000,
+    '1month': 60_000,
+  };
+  const candles = useMemo(
+    () => ticksToCandles(history, TIMEFRAME_TO_BUCKET_MS[timeframe]),
+    [history, timeframe],
+  );
 
   const rsiData = useMemo(() => calculateRSI(candles), [candles]);
   const macdData = useMemo(() => calculateMACD(candles), [candles]);
@@ -105,9 +113,12 @@ export default function AssetDetailPage({ symbol }: AssetDetailPageProps) {
     );
   }
 
-  const displayPrice = livePrice ?? asset.price;
-  const displayChange = liveChange ?? asset.change;
-  const displayChangePercent = liveChangePercent ?? asset.changePercent;
+  const displayPrice = engineState?.price ?? asset.price;
+  const displayChange = engineState ? engineState.price - engineState.prevClose : asset.change;
+  const displayChangePercent =
+    engineState && engineState.prevClose !== 0
+      ? (displayChange / engineState.prevClose) * 100
+      : asset.changePercent;
   const isPositive = displayChange >= 0;
   const changeColor = isPositive ? 'text-emerald-400' : 'text-red-400';
   const changeSign = isPositive ? '+' : '';
@@ -185,7 +196,7 @@ export default function AssetDetailPage({ symbol }: AssetDetailPageProps) {
             </span>
           </div>
           <p className="font-mono text-[10px] text-muted-foreground mt-1.5">
-            {isLive ? 'Live market data' : "As of today's close"}
+            Simulated market · updates continuously
           </p>
         </section>
 
@@ -235,8 +246,8 @@ export default function AssetDetailPage({ symbol }: AssetDetailPageProps) {
           <div className="space-y-3">
             <CandlestickChart
               candles={candles}
-              loading={liveLoading}
-              error={liveError}
+              loading={candles.length === 0}
+              error={null}
               timeframe={timeframe}
               onTimeframeChange={setTimeframe}
             />
@@ -260,7 +271,7 @@ export default function AssetDetailPage({ symbol }: AssetDetailPageProps) {
             {candles.length === 0 ? (
               <div className="bg-card border border-border rounded-xl p-5 text-center">
                 <p className="text-xs text-muted-foreground">
-                  Live market data isn't available right now, so technical analysis (which needs real price history) can't run on placeholder data.
+                  Gathering enough simulated price history to analyze — check back in a few seconds.
                 </p>
               </div>
             ) : (
