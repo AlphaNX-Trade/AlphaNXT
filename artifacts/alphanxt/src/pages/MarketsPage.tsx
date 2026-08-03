@@ -4,6 +4,7 @@ import { ChevronLeft } from 'lucide-react';
 import { STOCKS, INDICES, ALL_ASSETS } from '@/data/marketData';
 import type { Asset } from '@/data/marketData';
 import { useWatchlist } from '@/hooks/useWatchlist';
+import { useMarketEngineList } from '@/hooks/useMarketEngineList';
 import { AssetCard } from '@/components/markets/AssetCard';
 import { SearchBar } from '@/components/markets/SearchBar';
 import { MarketSkeleton } from '@/components/markets/MarketSkeleton';
@@ -86,6 +87,18 @@ export default function MarketsPage() {
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<TabId>('all');
   const { watchlistLoading, addStock, removeStock, isInWatchlist } = useWatchlist();
+  const engineSnapshots = useMarketEngineList();
+
+  const engineBySymbol = useMemo(
+    () => new Map(engineSnapshots.map((s) => [s.symbol, s])),
+    [engineSnapshots],
+  );
+
+  const liveChangePercent = (symbol: string, fallback: number): number => {
+    const snap = engineBySymbol.get(symbol);
+    if (!snap || snap.prevClose === 0) return fallback;
+    return ((snap.price - snap.prevClose) / snap.prevClose) * 100;
+  };
 
   const isSearching = search.trim().length > 0;
 
@@ -96,9 +109,13 @@ export default function MarketsPage() {
       case 'watchlist':
         return ALL_ASSETS.filter((a) => isInWatchlist(a.symbol));
       case 'gainers':
-        return [...STOCKS].sort((a, b) => b.changePercent - a.changePercent);
+        return [...STOCKS].sort(
+          (a, b) => liveChangePercent(b.symbol, b.changePercent) - liveChangePercent(a.symbol, a.changePercent),
+        );
       case 'losers':
-        return [...STOCKS].sort((a, b) => a.changePercent - b.changePercent);
+        return [...STOCKS].sort(
+          (a, b) => liveChangePercent(a.symbol, a.changePercent) - liveChangePercent(b.symbol, b.changePercent),
+        );
       case 'active':
         return [...STOCKS].sort((a, b) => parseVolume(b.volume) - parseVolume(a.volume));
       default: {
@@ -109,22 +126,28 @@ export default function MarketsPage() {
     // isInWatchlist reference changes on every hook render, but its
     // underlying data only changes when the watchlist itself changes —
     // recomputing per keystroke elsewhere is fine for a list this small.
-  }, [activeTab, isInWatchlist]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, isInWatchlist, engineBySymbol]);
 
   const filtered = filterBySearch(tabFiltered, search);
   const showGrouped = activeTab === 'all' && !isSearching;
 
-  const renderCard = (asset: Asset) => (
-    <AssetCard
-      key={asset.symbol}
-      asset={asset}
-      onPress={() => setLocation(`/markets/${asset.symbol}`)}
-      isInWatchlist={isInWatchlist(asset.symbol)}
-      onWatchlistToggle={() =>
-        isInWatchlist(asset.symbol) ? removeStock(asset.symbol) : addStock(asset.symbol)
-      }
-    />
-  );
+  const renderCard = (asset: Asset) => {
+    const snap = engineBySymbol.get(asset.symbol);
+    return (
+      <AssetCard
+        key={asset.symbol}
+        asset={asset}
+        onPress={() => setLocation(`/markets/${asset.symbol}`)}
+        isInWatchlist={isInWatchlist(asset.symbol)}
+        onWatchlistToggle={() =>
+          isInWatchlist(asset.symbol) ? removeStock(asset.symbol) : addStock(asset.symbol)
+        }
+        livePrice={snap?.price}
+        liveChangePercent={snap ? liveChangePercent(asset.symbol, asset.changePercent) : undefined}
+      />
+    );
+  };
 
   return (
     <div className="min-h-[100dvh] bg-background flex flex-col max-w-[480px] mx-auto pb-16">
