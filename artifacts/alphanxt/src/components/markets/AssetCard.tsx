@@ -7,14 +7,26 @@ interface AssetCardProps {
   onPress: () => void;
   isInWatchlist: boolean;
   onWatchlistToggle: () => void;
+  /** Live simulated price/change from the market engine, overriding the static values when present. */
+  livePrice?: number;
+  liveChangePercent?: number;
 }
 
-export function AssetCard({ asset, onPress, isInWatchlist, onWatchlistToggle }: AssetCardProps) {
-  const isPositive = asset.change >= 0;
+export function AssetCard({
+  asset,
+  onPress,
+  isInWatchlist,
+  onWatchlistToggle,
+  livePrice,
+  liveChangePercent,
+}: AssetCardProps) {
+  const price = livePrice ?? asset.price;
+  const changePercent = liveChangePercent ?? asset.changePercent;
+  const isPositive = changePercent >= 0;
   const changeColor = isPositive ? 'text-emerald-400' : 'text-red-400';
   const changeSign = isPositive ? '+' : '';
 
-  const formattedPrice = `₹${asset.price.toLocaleString('en-IN', {
+  const formattedPrice = `₹${price.toLocaleString('en-IN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -42,7 +54,7 @@ export function AssetCard({ asset, onPress, isInWatchlist, onWatchlistToggle }: 
             {formattedPrice}
           </span>
           <span className={`font-mono text-xs ${changeColor}`}>
-            {changeSign}{asset.changePercent.toFixed(2)}%
+            {changeSign}{changePercent.toFixed(2)}%
           </span>
         </div>
 
