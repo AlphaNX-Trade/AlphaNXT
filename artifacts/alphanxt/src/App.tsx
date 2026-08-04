@@ -29,6 +29,8 @@ import EditProfilePage from '@/pages/EditProfilePage';
 import SettingsPage from '@/pages/SettingsPage';
 import NotificationsPage from '@/pages/NotificationsPage';
 import HelpPage from '@/pages/HelpPage';
+import AdminPage from '@/pages/AdminPage';
+import { isAdminEmail } from '@/lib/adminConfig';
 import LearnPage from '@/pages/LearnPage';
 import TopicLessonPage from '@/pages/TopicLessonPage';
 import QuizPage from '@/pages/QuizPage';
@@ -316,6 +318,24 @@ function ProtectedHelpPage() {
   return <HelpPage />;
 }
 
+function AdminGuard() {
+  const { user, loading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) {
+      setLocation('/login');
+    } else if (!isAdminEmail(user.email)) {
+      // Not an admin — redirect away rather than showing any admin UI or error.
+      setLocation('/dashboard');
+    }
+  }, [user, loading, setLocation]);
+
+  if (loading || !user || !isAdminEmail(user.email)) return <LoadingScreen />;
+  return <AdminPage />;
+}
+
 function ProtectedTopicLessonPage({ params }: { params: { topicId: string } }) {
   const { user, loading } = useAuth();
   const [, setLocation] = useLocation();
@@ -367,6 +387,7 @@ function Router() {
       <Route path="/settings" component={ProtectedSettingsPage} />
       <Route path="/notifications" component={ProtectedNotificationsPage} />
       <Route path="/help" component={ProtectedHelpPage} />
+      <Route path="/admin" component={AdminGuard} />
       <Route path="/learn/:topicId/quiz" component={ProtectedQuizPage} />
       <Route path="/learn/:topicId" component={ProtectedTopicLessonPage} />
       <Route component={NotFound} />
