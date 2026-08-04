@@ -12,9 +12,11 @@ import {
   Loader2,
   Trophy,
   Target,
+  ShieldCheck,
 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { BottomNav } from '@/components/dashboard/BottomNav';
 import { ProfileMenuItem } from '@/components/profile/ProfileMenuItem';
 import { toast } from '@/hooks/use-toast';
@@ -39,6 +41,7 @@ export default function ProfilePage() {
   const [, setLocation] = useLocation();
   const { profile, profileLoading } = useUserProfile();
   const [loggingOut, setLoggingOut] = useState(false);
+  const isAdmin = useIsAdmin();
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -142,6 +145,24 @@ export default function ProfilePage() {
             onClick={() => setLocation('/challenges')}
           />
         </div>
+
+        {isAdmin && (
+          <div className="space-y-2">
+            <p className="font-mono text-[10px] uppercase tracking-widest text-primary/70 px-1">
+              System
+            </p>
+            <button
+              onClick={() => setLocation('/admin')}
+              className="w-full flex items-center gap-3 px-4 py-3.5 bg-gradient-to-r from-primary/10 to-transparent border border-primary/30 rounded-xl hover:border-primary/50 transition-colors"
+            >
+              <div className="w-9 h-9 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-4 h-4 text-primary" />
+              </div>
+              <span className="flex-1 text-left text-sm font-medium text-foreground">Control Center</span>
+              <span className="font-mono text-[9px] uppercase tracking-widest text-primary">Admin</span>
+            </button>
+          </div>
+        )}
 
         <div className="space-y-2">
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground px-1">
