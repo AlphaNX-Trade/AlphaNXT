@@ -1,5 +1,6 @@
 import { marketEngine } from './engine';
 import { ALL_ASSETS } from '@/data/marketData';
+import { ensureAdminStocksSubscribed } from '@/hooks/useAllAssets';
 
 let initialized = false;
 
@@ -23,4 +24,8 @@ export function ensureMarketEngineRunning(): void {
     })),
   );
   marketEngine.start();
+
+  // Also start listening for admin-added stocks app-wide, not just on
+  // pages that happen to render useAllAssets().
+  ensureAdminStocksSubscribed();
 }
