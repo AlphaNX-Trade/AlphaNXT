@@ -81,32 +81,38 @@ export class MarketSimulationEngine {
   seed(stocks: SeedStock[]): void {
     const now = Date.now();
     for (const s of stocks) {
-      const volatility = Math.max(0.05, s.price * 0.0015);
-      const state: SimulatedStockState = {
-        symbol: s.symbol,
-        name: s.name,
-        sector: s.sector,
-        type: s.type,
-        price: s.price,
-        prevClose: s.price,
-        open: s.price,
-        dayHigh: s.price,
-        dayLow: s.price,
-        trend: 0,
-        momentum: 0,
-        volatility,
-        support: s.price * 0.9,
-        resistance: s.price * 1.1,
-        sentiment: 'Neutral',
-        liquidity: volatility > s.price * 0.003 ? 'Low' : s.price > 1000 ? 'High' : 'Medium',
-        risk: volatility > s.price * 0.0025 ? 'High' : volatility > s.price * 0.0012 ? 'Medium' : 'Low',
-        lastUpdate: now,
-      };
-      this.stocks.set(s.symbol, state);
-      this.history.set(s.symbol, [{ time: now, price: s.price }]);
+      this.addStock(s, now);
     }
     this.rollCycle(now);
     this.scheduleNextEvent(now);
+  }
+
+  /** Adds one new stock to an already-running engine (e.g. an admin-added stock) without disrupting existing ones. */
+  addStock(s: SeedStock, now = Date.now()): void {
+    if (this.stocks.has(s.symbol)) return; // already tracked — avoid resetting its state
+    const volatility = Math.max(0.05, s.price * 0.0015);
+    const state: SimulatedStockState = {
+      symbol: s.symbol,
+      name: s.name,
+      sector: s.sector,
+      type: s.type,
+      price: s.price,
+      prevClose: s.price,
+      open: s.price,
+      dayHigh: s.price,
+      dayLow: s.price,
+      trend: 0,
+      momentum: 0,
+      volatility,
+      support: s.price * 0.9,
+      resistance: s.price * 1.1,
+      sentiment: 'Neutral',
+      liquidity: volatility > s.price * 0.003 ? 'Low' : s.price > 1000 ? 'High' : 'Medium',
+      risk: volatility > s.price * 0.0025 ? 'High' : volatility > s.price * 0.0012 ? 'Medium' : 'Low',
+      lastUpdate: now,
+    };
+    this.stocks.set(s.symbol, state);
+    this.history.set(s.symbol, [{ time: now, price: s.price }]);
   }
 
   start(): void {
