@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Wallet, TrendingUp, Loader2, CheckCircle2, AlertCircle, Zap } from 'lucide-react';
+import { X, Wallet, TrendingUp, Loader2, CheckCircle2, AlertCircle, Zap, MinusCircle, Award } from 'lucide-react';
 import type { AdminUserRow } from '@/lib/adminService';
-import { adminAddMoney, adminAdjustProfitLoss } from '@/lib/adminService';
+import { adminAddMoney, adminSubtractMoney, adminAdjustProfitLoss, setUserTitle } from '@/lib/adminService';
 
 interface AdminUserDetailSheetProps {
   user: AdminUserRow;
@@ -15,21 +15,45 @@ const fmt = (n: number) =>
 
 export function AdminUserDetailSheet({ user, onClose, onUpdated }: AdminUserDetailSheetProps) {
   const [moneyAmount, setMoneyAmount] = useState('');
+  const [moneyMode, setMoneyMode] = useState<'credit' | 'debit'>('credit');
   const [plAmount, setPlAmount] = useState('');
-  const [busy, setBusy] = useState<'money' | 'pl' | null>(null);
+  const [titleInput, setTitleInput] = useState(user.title ?? '');
+  const [busy, setBusy] = useState<'money' | 'pl' | 'title' | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const handleAddMoney = async () => {
+  const handleMoneyAction = async () => {
     const amount = parseFloat(moneyAmount);
     setBusy('money');
     setFeedback(null);
     try {
-      await adminAddMoney(user.uid, amount);
-      setFeedback({ type: 'success', message: `Credited ${fmt(amount)} to ${user.fullName}.` });
+      if (moneyMode === 'credit') {
+        await adminAddMoney(user.uid, amount);
+        setFeedback({ type: 'success', message: `Credited ${fmt(amount)} to ${user.fullName}.` });
+      } else {
+        await adminSubtractMoney(user.uid, amount);
+        setFeedback({ type: 'success', message: `Debited ${fmt(amount)} from ${user.fullName}.` });
+      }
       setMoneyAmount('');
       onUpdated();
     } catch (err) {
-      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Failed to add money.' });
+      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Failed to update balance.' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleSetTitle = async () => {
+    setBusy('title');
+    setFeedback(null);
+    try {
+      await setUserTitle(user.uid, titleInput);
+      setFeedback({
+        type: 'success',
+        message: titleInput.trim() ? `Title "${titleInput.trim()}" assigned.` : 'Title cleared.',
+      });
+      onUpdated();
+    } catch (err) {
+      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Failed to set title.' });
     } finally {
       setBusy(null);
     }
@@ -148,11 +172,31 @@ export function AdminUserDetailSheet({ user, onClose, onUpdated }: AdminUserDeta
               )}
             </AnimatePresence>
 
-            {/* Add Money */}
+            {/* Add / Remove Money */}
             <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/[0.06] to-transparent p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Wallet className="w-4 h-4 text-primary" />
-                <p className="font-mono text-xs uppercase tracking-widest text-foreground">Credit Balance</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-primary" />
+                  <p className="font-mono text-xs uppercase tracking-widest text-foreground">Balance</p>
+                </div>
+                <div className="flex bg-black/30 rounded-lg p-0.5 gap-0.5">
+                  <button
+                    onClick={() => setMoneyMode('credit')}
+                    className={`px-3 py-1 rounded-md font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                      moneyMode === 'credit' ? 'bg-emerald-500 text-white' : 'text-muted-foreground'
+                    }`}
+                  >
+                    Add
+                  </button>
+                  <button
+                    onClick={() => setMoneyMode('debit')}
+                    className={`px-3 py-1 rounded-md font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                      moneyMode === 'debit' ? 'bg-red-500 text-white' : 'text-muted-foreground'
+                    }`}
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
               <div className="flex gap-2">
                 <input
@@ -163,13 +207,28 @@ export function AdminUserDetailSheet({ user, onClose, onUpdated }: AdminUserDeta
                   className="flex-1 bg-black/30 border border-primary/20 rounded-lg px-3 py-2.5 font-mono text-sm text-foreground focus:outline-none focus:border-primary/60"
                 />
                 <button
-                  onClick={handleAddMoney}
+                  onClick={handleMoneyAction}
                   disabled={busy === 'money' || !moneyAmount}
-                  className="px-4 rounded-lg bg-primary text-primary-foreground font-mono text-xs font-semibold uppercase tracking-wider disabled:opacity-40 hover:opacity-90 transition-opacity flex items-center gap-1.5"
-                  style={{ boxShadow: '0 0 20px rgba(0, 224, 255, 0.25)' }}
+                  className={`px-4 rounded-lg font-mono text-xs font-semibold uppercase tracking-wider disabled:opacity-40 transition-opacity flex items-center gap-1.5 ${
+                    moneyMode === 'credit'
+                      ? 'bg-emerald-500 text-white hover:opacity-90'
+                      : 'bg-red-500 text-white hover:opacity-90'
+                  }`}
+                  style={{
+                    boxShadow:
+                      moneyMode === 'credit'
+                        ? '0 0 20px rgba(16, 185, 129, 0.25)'
+                        : '0 0 20px rgba(239, 68, 68, 0.25)',
+                  }}
                 >
-                  {busy === 'money' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-                  Credit
+                  {busy === 'money' ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : moneyMode === 'credit' ? (
+                    <Zap className="w-3.5 h-3.5" />
+                  ) : (
+                    <MinusCircle className="w-3.5 h-3.5" />
+                  )}
+                  {moneyMode === 'credit' ? 'Credit' : 'Debit'}
                 </button>
               </div>
             </div>
@@ -199,6 +258,34 @@ export function AdminUserDetailSheet({ user, onClose, onUpdated }: AdminUserDeta
                   className="px-4 rounded-lg bg-secondary text-foreground font-mono text-xs font-semibold uppercase tracking-wider disabled:opacity-40 hover:bg-secondary/70 transition-colors flex items-center gap-1.5"
                 >
                   {busy === 'pl' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                  Apply
+                </button>
+              </div>
+            </div>
+
+            {/* Assign Title */}
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Award className="w-4 h-4 text-muted-foreground" />
+                <p className="font-mono text-xs uppercase tracking-widest text-foreground">Assign Title</p>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Shown as a badge on their profile. Leave blank and apply to remove it.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={titleInput}
+                  onChange={(e) => setTitleInput(e.target.value)}
+                  placeholder="e.g. VIP Trader, Verified"
+                  className="flex-1 bg-black/30 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-white/30"
+                />
+                <button
+                  onClick={handleSetTitle}
+                  disabled={busy === 'title'}
+                  className="px-4 rounded-lg bg-secondary text-foreground font-mono text-xs font-semibold uppercase tracking-wider disabled:opacity-40 hover:bg-secondary/70 transition-colors flex items-center gap-1.5"
+                >
+                  {busy === 'title' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                   Apply
                 </button>
               </div>
