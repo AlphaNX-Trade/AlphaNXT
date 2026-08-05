@@ -3,6 +3,7 @@ import { useLocation, Link } from 'wouter';
 import { motion } from 'framer-motion';
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, AuthError } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { initializeUserDocument } from '@/lib/userService';
 import { BrandLogo } from '@/components/ui/Brand';
 import { FcGoogle } from 'react-icons/fc';
 import { Loader2 } from 'lucide-react';
@@ -34,7 +35,14 @@ export default function LoginPage() {
     setError('');
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      // Idempotent — only writes docs if they don't already exist, so this
+      // is safe for both brand-new and returning Google sign-ins.
+      await initializeUserDocument(
+        result.user.uid,
+        result.user.displayName ?? 'Trader',
+        result.user.email ?? '',
+      );
       setLocation('/dashboard');
     } catch (err) {
       const authErr = err as AuthError;
