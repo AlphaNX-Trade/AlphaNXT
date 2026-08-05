@@ -94,9 +94,19 @@ export default function ProfilePage() {
               </span>
             </div>
 
-            <p className="text-base font-semibold text-foreground">
-              {profile?.fullName ?? 'Trader'}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-base font-semibold text-foreground">
+                {profile?.fullName ?? 'Trader'}
+              </p>
+              {profile?.title && (
+                <span className="font-mono text-[9px] uppercase tracking-widest bg-primary/15 text-primary px-1.5 py-0.5 rounded border border-primary/20">
+                  {profile.title}
+                </span>
+              )}
+            </div>
+            {profile?.username && (
+              <p className="text-xs text-primary/80 font-mono">@{profile.username}</p>
+            )}
             <p className="text-xs text-muted-foreground mt-0.5">{profile?.email}</p>
 
             <div className="flex items-center gap-2 mt-3">
