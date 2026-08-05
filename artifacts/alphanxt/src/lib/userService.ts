@@ -11,6 +11,10 @@ export interface UserProfileDoc {
   createdAt: ReturnType<typeof serverTimestamp>;
   xp: number;
   level: string;
+  /** User-chosen handle, set from Edit Profile. Optional — not all users set one. */
+  username?: string;
+  /** Admin-assigned label (e.g. "VIP Trader", "Verified") — only the admin can set this, never the user. */
+  title?: string;
 }
 
 /** portfolio/{uid} — financial / trading data */
@@ -155,4 +159,18 @@ export async function updateUserFullName(uid: string, fullName: string): Promise
     throw new Error('Name cannot be empty.');
   }
   await updateDoc(doc(db, 'users', uid), { fullName: trimmed });
+}
+
+/**
+ * Updates the user's chosen username/handle. Basic format validation only —
+ * uniqueness isn't enforced (would need a lookup collection to check
+ * reliably; usernames here are a display handle, not a login identifier,
+ * so a collision is a cosmetic issue rather than a functional one).
+ */
+export async function updateUsername(uid: string, username: string): Promise<void> {
+  const trimmed = username.trim();
+  if (trimmed && !/^[a-zA-Z0-9_]{3,20}$/.test(trimmed)) {
+    throw new Error('Username must be 3-20 characters: letters, numbers, and underscores only.');
+  }
+  await updateDoc(doc(db, 'users', uid), { username: trimmed || null });
 }
