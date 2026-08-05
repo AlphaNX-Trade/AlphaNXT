@@ -1,4 +1,4 @@
-import { collection, doc, getDocs, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, updateDoc, increment, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { UserProfileDoc, PortfolioDoc } from '@/lib/userService';
 
@@ -6,6 +6,8 @@ export interface AdminUserRow {
   uid: string;
   fullName: string;
   email: string;
+  username?: string;
+  title?: string;
   xp: number;
   level: string;
   virtualBalance: number;
@@ -38,6 +40,8 @@ export async function listAllUsers(): Promise<AdminUserRow[]> {
       uid: d.id,
       fullName: user.fullName ?? 'Unknown',
       email: user.email ?? '—',
+      username: user.username,
+      title: user.title,
       xp: user.xp ?? 0,
       level: user.level ?? 'Beginner',
       virtualBalance: portfolio?.virtualBalance ?? 0,
@@ -61,6 +65,39 @@ export async function adminAddMoney(uid: string, amount: number): Promise<void> 
     portfolioValue: increment(amount),
     updatedAt: serverTimestamp(),
   });
+}
+
+/**
+ * Debits (removes) money from a user's virtual balance. Won't let the
+ * balance go negative — caps the debit at whatever they currently have.
+ */
+export async function adminSubtractMoney(uid: string, amount: number): Promise<void> {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error('Amount must be greater than zero.');
+  }
+  const portfolioRef = doc(db, 'portfolio', uid);
+  const snap = await getDoc(portfolioRef);
+  if (!snap.exists()) throw new Error('Portfolio not found for this user.');
+
+  const currentBalance = (snap.data().virtualBalance as number) ?? 0;
+  const actualDebit = Math.min(amount, currentBalance);
+
+  await updateDoc(portfolioRef, {
+    virtualBalance: increment(-actualDebit),
+    portfolioValue: increment(-actualDebit),
+    updatedAt: serverTimestamp(),
+  });
+
+  if (actualDebit < amount) {
+    throw new Error(
+      `Only ₹${actualDebit.toLocaleString('en-IN')} was available — balance can't go negative, so that's all that was removed.`,
+    );
+  }
+}
+
+/** Assigns (or clears, with an empty string) an admin-only display title on a user's profile. */
+export async function setUserTitle(uid: string, title: string): Promise<void> {
+  await updateDoc(doc(db, 'users', uid), { title: title.trim() || null });
 }
 
 /**
