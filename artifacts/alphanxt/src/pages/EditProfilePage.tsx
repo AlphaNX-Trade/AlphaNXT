@@ -3,7 +3,7 @@ import { useLocation } from 'wouter';
 import { ChevronLeft, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { updateUserFullName } from '@/lib/userService';
+import { updateUserFullName, updateUsername } from '@/lib/userService';
 
 export default function EditProfilePage() {
   const [, setLocation] = useLocation();
@@ -11,22 +11,27 @@ export default function EditProfilePage() {
   const { profile, profileLoading } = useUserProfile();
 
   const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile?.fullName) setFullName(profile.fullName);
-  }, [profile?.fullName]);
+    setUsername(profile?.username ?? '');
+  }, [profile?.fullName, profile?.username]);
 
-  const hasChanges = profile ? fullName.trim() !== profile.fullName && fullName.trim().length > 0 : false;
+  const nameChanged = profile ? fullName.trim() !== profile.fullName && fullName.trim().length > 0 : false;
+  const usernameChanged = profile ? username.trim() !== (profile.username ?? '') : false;
+  const hasChanges = nameChanged || usernameChanged;
 
   const handleSave = async () => {
     if (!user || !hasChanges) return;
     setSaving(true);
     setError(null);
     try {
-      await updateUserFullName(user.uid, fullName);
+      if (nameChanged) await updateUserFullName(user.uid, fullName);
+      if (usernameChanged) await updateUsername(user.uid, username);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -70,6 +75,33 @@ export default function EditProfilePage() {
                 className="w-full bg-secondary/40 border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-primary/40"
               />
             </div>
+
+            <div className="bg-card border border-border rounded-xl p-4 space-y-2">
+              <label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                Username
+              </label>
+              <div className="flex items-center">
+                <span className="text-muted-foreground text-sm pr-0.5">@</span>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.replace(/\s/g, ''))}
+                  placeholder="yourhandle"
+                  className="flex-1 bg-secondary/40 border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-primary/40"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">3-20 characters: letters, numbers, underscores.</p>
+            </div>
+
+            {profile?.title && (
+              <div className="bg-card border border-primary/20 rounded-xl p-4 space-y-1">
+                <label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                  Title
+                </label>
+                <p className="text-sm text-primary font-medium">{profile.title}</p>
+                <p className="text-[11px] text-muted-foreground">Assigned by AlphaNXT — can't be self-edited.</p>
+              </div>
+            )}
 
             <div className="bg-card border border-border rounded-xl p-4 space-y-2">
               <label className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
