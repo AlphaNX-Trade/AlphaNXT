@@ -122,6 +122,8 @@ export function useUserProfile(): UseUserProfileResult {
           createdAt: userDoc.createdAt,
           xp: userDoc.xp ?? 0,
           level: userDoc.level ?? 'Beginner',
+          username: userDoc.username,
+          title: userDoc.title,
 
           // PortfolioDoc fields
           virtualBalance: portfolioDoc.virtualBalance,
