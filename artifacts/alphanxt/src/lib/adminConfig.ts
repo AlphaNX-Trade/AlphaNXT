@@ -6,7 +6,7 @@
  * could never pass the Firestore rules check without actually being signed
  * in as this email).
  */
-export const ADMIN_EMAIL = 'alphanxt@gmail.com';
+export const ADMIN_EMAIL = 'admin.07@gmail.com';
 
 export function isAdminEmail(email: string | null | undefined): boolean {
   return (email ?? '').toLowerCase() === ADMIN_EMAIL.toLowerCase();
